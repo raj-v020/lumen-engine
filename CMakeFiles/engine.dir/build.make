@@ -86,34 +86,50 @@ CMakeFiles/engine.dir/src/main.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/engine.dir/src/main.cpp.s"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/rajv/Desktop/Programming/engine/src/main.cpp -o CMakeFiles/engine.dir/src/main.cpp.s
 
-CMakeFiles/engine.dir/src/LinearAllocator.cpp.o: CMakeFiles/engine.dir/flags.make
-CMakeFiles/engine.dir/src/LinearAllocator.cpp.o: src/LinearAllocator.cpp
-CMakeFiles/engine.dir/src/LinearAllocator.cpp.o: CMakeFiles/engine.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/rajv/Desktop/Programming/engine/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/engine.dir/src/LinearAllocator.cpp.o"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/engine.dir/src/LinearAllocator.cpp.o -MF CMakeFiles/engine.dir/src/LinearAllocator.cpp.o.d -o CMakeFiles/engine.dir/src/LinearAllocator.cpp.o -c /home/rajv/Desktop/Programming/engine/src/LinearAllocator.cpp
+CMakeFiles/engine.dir/src/Arena.cpp.o: CMakeFiles/engine.dir/flags.make
+CMakeFiles/engine.dir/src/Arena.cpp.o: src/Arena.cpp
+CMakeFiles/engine.dir/src/Arena.cpp.o: CMakeFiles/engine.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/rajv/Desktop/Programming/engine/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/engine.dir/src/Arena.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/engine.dir/src/Arena.cpp.o -MF CMakeFiles/engine.dir/src/Arena.cpp.o.d -o CMakeFiles/engine.dir/src/Arena.cpp.o -c /home/rajv/Desktop/Programming/engine/src/Arena.cpp
 
-CMakeFiles/engine.dir/src/LinearAllocator.cpp.i: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/engine.dir/src/LinearAllocator.cpp.i"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/rajv/Desktop/Programming/engine/src/LinearAllocator.cpp > CMakeFiles/engine.dir/src/LinearAllocator.cpp.i
+CMakeFiles/engine.dir/src/Arena.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/engine.dir/src/Arena.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/rajv/Desktop/Programming/engine/src/Arena.cpp > CMakeFiles/engine.dir/src/Arena.cpp.i
 
-CMakeFiles/engine.dir/src/LinearAllocator.cpp.s: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/engine.dir/src/LinearAllocator.cpp.s"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/rajv/Desktop/Programming/engine/src/LinearAllocator.cpp -o CMakeFiles/engine.dir/src/LinearAllocator.cpp.s
+CMakeFiles/engine.dir/src/Arena.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/engine.dir/src/Arena.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/rajv/Desktop/Programming/engine/src/Arena.cpp -o CMakeFiles/engine.dir/src/Arena.cpp.s
+
+CMakeFiles/engine.dir/src/TCPServer.cpp.o: CMakeFiles/engine.dir/flags.make
+CMakeFiles/engine.dir/src/TCPServer.cpp.o: src/TCPServer.cpp
+CMakeFiles/engine.dir/src/TCPServer.cpp.o: CMakeFiles/engine.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/rajv/Desktop/Programming/engine/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building CXX object CMakeFiles/engine.dir/src/TCPServer.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/engine.dir/src/TCPServer.cpp.o -MF CMakeFiles/engine.dir/src/TCPServer.cpp.o.d -o CMakeFiles/engine.dir/src/TCPServer.cpp.o -c /home/rajv/Desktop/Programming/engine/src/TCPServer.cpp
+
+CMakeFiles/engine.dir/src/TCPServer.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/engine.dir/src/TCPServer.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/rajv/Desktop/Programming/engine/src/TCPServer.cpp > CMakeFiles/engine.dir/src/TCPServer.cpp.i
+
+CMakeFiles/engine.dir/src/TCPServer.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/engine.dir/src/TCPServer.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/rajv/Desktop/Programming/engine/src/TCPServer.cpp -o CMakeFiles/engine.dir/src/TCPServer.cpp.s
 
 # Object files for target engine
 engine_OBJECTS = \
 "CMakeFiles/engine.dir/src/main.cpp.o" \
-"CMakeFiles/engine.dir/src/LinearAllocator.cpp.o"
+"CMakeFiles/engine.dir/src/Arena.cpp.o" \
+"CMakeFiles/engine.dir/src/TCPServer.cpp.o"
 
 # External object files for target engine
 engine_EXTERNAL_OBJECTS =
 
 engine: CMakeFiles/engine.dir/src/main.cpp.o
-engine: CMakeFiles/engine.dir/src/LinearAllocator.cpp.o
+engine: CMakeFiles/engine.dir/src/Arena.cpp.o
+engine: CMakeFiles/engine.dir/src/TCPServer.cpp.o
 engine: CMakeFiles/engine.dir/build.make
 engine: CMakeFiles/engine.dir/compiler_depend.ts
 engine: CMakeFiles/engine.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/rajv/Desktop/Programming/engine/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Linking CXX executable engine"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/rajv/Desktop/Programming/engine/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Linking CXX executable engine"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/engine.dir/link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.

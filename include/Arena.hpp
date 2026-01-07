@@ -1,8 +1,9 @@
 #pragma once
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 
-class LinearAllocator{
+class Arena{
 private:
   void *arena;
   size_t capacity;
@@ -10,11 +11,11 @@ private:
 
   void* alloc_raw(size_t size, size_t alignment);
 public:
-  explicit LinearAllocator(size_t capacity);
-  ~LinearAllocator();
+  explicit Arena(size_t capacity);
+  ~Arena();
 
-  LinearAllocator(const LinearAllocator&) = delete;
-  LinearAllocator& operator=(const LinearAllocator&) = delete;
+  Arena(const Arena&) = delete;
+  Arena& operator=(const Arena&) = delete;
 
   template <typename T>
   T* alloc(size_t count = 1) {

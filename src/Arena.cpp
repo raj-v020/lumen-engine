@@ -1,23 +1,23 @@
-#include "LinearAllocator.hpp"
+#include "Arena.hpp"
 
 #include <cstdlib>
 #include <stdexcept>
 
 // 1. Implementation of the Constructor
-LinearAllocator::LinearAllocator(size_t max_size) {
+Arena::Arena(size_t max_size) {
     arena = std::malloc(max_size);
     capacity = max_size;
     offset = 0;
 }
 
 // 2. Implementation of the Destructor
-LinearAllocator::~LinearAllocator() {
+Arena::~Arena() {
     std::free(arena);
 
 }
 
 // 3. Implementation of alloc_raw
-void* LinearAllocator::alloc_raw(size_t size, size_t alignment) {
+void* Arena::alloc_raw(size_t size, size_t alignment) {
     uintptr_t base_addr = reinterpret_cast<uintptr_t>(arena);
     uintptr_t current_addr = base_addr + offset;
 
@@ -33,11 +33,11 @@ void* LinearAllocator::alloc_raw(size_t size, size_t alignment) {
 }
 
 // 4. Implementation of reset
-void LinearAllocator::reset() {
+void Arena::reset() {
     offset = 0;
 }
 
 // 5. Implementation of get_usage
-size_t LinearAllocator::get_usage(){
+size_t Arena::get_usage(){
     return offset;
 }
