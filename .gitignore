@@ -1,35 +1,38 @@
-# Prerequisites
+# === Build Artifacts ===
+# Main binaries and tests
+engine
+lumen_server
+test_client
+*.out
+a.out
+
+# Object files and dependency files
+*.o
 *.d
 
-# Compiled Object files
-*.plo
-*.o
-*.obj
+# === CMake / Build System ===
+build/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+install_manifest.txt
 
-# Precompiled Headers
-*.gch
-*.pch
-
-# Compiled Dynamic libraries
+# === Libraries & AI Models ===
 *.so
-*.dylib
-*.dll
-
-# Compiled Static libraries
-*.lai
-*.la
+*.so.*
 *.a
-*.lib
+*.onnx
 
-# Executables
-*.exe
-*.out
-*.app
-a.out
-engine
-
-# IDE / Editor junk (Optional but recommended)
+# === Neovim / Editor Junk ===
+# Neovim swap files and history
 *.swp
+*.swo
 *.swn
 Session.vim
 .netrwhist
+undo/
+
+# === Debugging ===
+vgcore.*
+*.log
