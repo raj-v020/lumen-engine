@@ -1,3 +1,0 @@
-/home/rajv/Desktop/Programming/engine/CMakeFiles/engine.dir
-/home/rajv/Desktop/Programming/engine/CMakeFiles/edit_cache.dir
-/home/rajv/Desktop/Programming/engine/CMakeFiles/rebuild_cache.dir
