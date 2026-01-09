@@ -5,9 +5,12 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <cerrno>
+#include <iostream>
 
 #include "TCPServer.hpp"
+#include "InferenceEngine.hpp"
 
+namespace lumen {
 ServerException::ServerException(const std::string& msg){
     full_msg = msg + ": " + std::strerror(errno);
 }
@@ -170,6 +173,7 @@ int TCPServer::process_body(ClientSession& session, int fd){
     if(session.bytes_received == session.expected_size){
         session.state = ClientSession::READY_FOR_INFERENCE;
         printf("Body processed. Received %u bytes at %p\n", session.expected_size, (void*)session.data_ptr);
+        finalize_request(session, fd);
     }
     return bytes_received;
 }
@@ -177,7 +181,13 @@ int TCPServer::process_body(ClientSession& session, int fd){
 int TCPServer::finalize_request(ClientSession& session, int fd){
     printf("Succesfully Received Tensor of %u bytes at %p\n", session.expected_size, (void*)session.data_ptr);
 
-    //TODO: Implement Inference and Send Result
+    InferenceEngine engine("models/resnet18-v1-7.onnx");
+    //InferenceEngine engine("models/squeezenet1.1-7.onnx");
+    SqueezeNetPreProcessor pre;
+    SqueezeNetPostProcessor post("models/labels.txt");
+
+    engine.infer(arena, pre, post);
+    std::cout << "[Lumen] Ready for next frame." << std::endl;
 
     const char *msg = "OK";
     int total_sent = 0;
@@ -232,4 +242,5 @@ void TCPServer::run() {
             }
         }
     }
+}
 }

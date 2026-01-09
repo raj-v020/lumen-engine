@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include "Arena.hpp"
 
+namespace lumen {
 class ServerException : public std::exception{
 private:
   std::string full_msg;
@@ -55,3 +56,4 @@ public:
   ~TCPServer();
   void run();
 };
+}

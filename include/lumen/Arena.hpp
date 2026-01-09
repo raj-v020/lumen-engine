@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cstdlib>
 
+namespace lumen {
 class Arena{
 private:
   void *arena;
@@ -24,8 +25,10 @@ public:
     void* ptr = alloc_raw(bytes, align);
     return static_cast<T*>(ptr);
   }
-  
+
   void reset();
+  void* get_data();
 
   size_t get_usage();
 };
+}
