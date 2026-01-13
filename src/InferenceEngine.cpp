@@ -40,7 +40,7 @@ InferenceEngine::~InferenceEngine(){
     std::cout << "Lumen InferenceEngine: Shutting down and releasing model resources." << std::endl;
 }
 
-void InferenceEngine::infer(lumen::Arena& arena, IPreprocessor& pre, IPostProcessor& post) {
+std::string InferenceEngine::infer(Arena& arena, IPreProcessor& pre, IPostProcessor& post) {
     LumenTimer total_timer("Total Inference Loop");
 
     auto memory_info = Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU);
@@ -86,6 +86,6 @@ void InferenceEngine::infer(lumen::Arena& arena, IPreprocessor& pre, IPostProces
     size_t output_count = output_tensors[0].GetTensorTypeAndShapeInfo().GetElementCount();
     std::vector<float> results(output_data, output_data + output_count);
 
-    post.handle_results(results);
+    return post.handle_results(results);
 }
 }

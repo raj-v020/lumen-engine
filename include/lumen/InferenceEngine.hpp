@@ -22,6 +22,6 @@ private:
 public:
   InferenceEngine(std::string model_path);
   ~InferenceEngine();
-  void infer(lumen::Arena& arena, IPreprocessor& pre, IPostProcessor& post);
+  std::string infer(lumen::Arena& arena, IPreProcessor& pre, IPostProcessor& post);
 };
 }

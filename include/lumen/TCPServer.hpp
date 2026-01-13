@@ -8,6 +8,11 @@
 #include <cstdint>
 #include <unordered_map>
 #include "Arena.hpp"
+#include "InferenceEngine.hpp"
+#include "Processor.hpp"
+#include "ThreadSafeQueue.hpp"
+#include "InferenceTask.hpp"
+#include "InferenceResult.hpp"
 
 namespace lumen {
 class ServerException : public std::exception{
@@ -24,11 +29,18 @@ private:
   std::vector<struct pollfd> pollfds;
   int backlog = 10;
   Arena& arena;
+  InferenceEngine& engine;
+  std::shared_ptr<IPreProcessor> pre;
+  std::shared_ptr<IPostProcessor> post;
+  ThreadSafeQueue<InferenceTask>& task_queue;
+  ThreadSafeQueue<InferenceResult>& response_queue;
+
   struct ClientSession{
     enum State {
       HEADER_PENDING,
       BODY_PENDING,
       READY_FOR_INFERENCE,
+      INFERENCE_PENDING,
       RESPONSE_SENDING
     };
 
@@ -36,11 +48,22 @@ private:
 
     uint32_t expected_size = 0;
     size_t bytes_received = 0;
-    unsigned char* data_ptr = nullptr;
+    std::vector<uint8_t> body_buffer;
 
     unsigned char header_buffer[4];
     size_t header_bytes_received = 0;
+
+    std::string response_buffer;
+    size_t bytes_sent = 0;
+
+    void reset() {
+        body_buffer.clear();
+        bytes_received = 0;
+        expected_size = 0;
+    }
   };
+
+
   std::unordered_map<int, ClientSession> sessions;
   void handle_new_connection();
   int handle_client_data(int fd, size_t poll_index);
@@ -52,7 +75,7 @@ private:
   void close_connection(int fd, size_t poll_index);
 
 public:
-  TCPServer(const char *port, Arena& a);
+  TCPServer(const char *port, ThreadSafeQueue<InferenceTask>& tq, ThreadSafeQueue<InferenceResult>& rq, Arena& a, InferenceEngine& engine, std::shared_ptr<IPreProcessor> pr, std::shared_ptr<IPostProcessor> po);
   ~TCPServer();
   void run();
 };

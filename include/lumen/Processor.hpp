@@ -7,10 +7,10 @@
 #include <fstream>
 #include <string>
 
-
-class IPreprocessor {
+namespace lumen {
+class IPreProcessor {
 public:
-    virtual ~IPreprocessor() = default;
+    virtual ~IPreProcessor() = default;
     virtual void transform(void* raw_arena, float* tensor_buffer, size_t width, size_t height) = 0;
 };
 
@@ -21,7 +21,7 @@ public:
 };
 
 
-class SqueezeNetPreProcessor : public IPreprocessor {
+class SqueezeNetPreProcessor : public IPreProcessor {
 public:
     /**
      * SqueezeNet Requirements:
@@ -86,7 +86,8 @@ public:
         std::cout << " Identified: " << label_name << " (ID: " << class_id << ")" << std::endl;
         std::cout << " Confidence: " << (confidence * 100.0f) << "%" << std::endl;
         std::cout << "------------------------------------\n" << std::endl;
-        return label + " (" + std::to_string(confidence) + ")";
+        return label_name + " (" + std::to_string(confidence) + ")";
     }
 };
+}
 
