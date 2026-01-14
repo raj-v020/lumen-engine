@@ -1,4 +1,5 @@
 #include "InferenceEngine.hpp"
+#include "InferenceTrace.hpp"
 
 #include <iostream>
 #include "Arena.hpp"
@@ -40,8 +41,7 @@ InferenceEngine::~InferenceEngine(){
     std::cout << "Lumen InferenceEngine: Shutting down and releasing model resources." << std::endl;
 }
 
-std::string InferenceEngine::infer(Arena& arena, IPreProcessor& pre, IPostProcessor& post) {
-    LumenTimer total_timer("Total Inference Loop");
+std::string InferenceEngine::infer(Arena& arena, IPreProcessor& pre, IPostProcessor& post, InferenceTrace* trace) {
 
     auto memory_info = Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU);
 
@@ -53,11 +53,13 @@ std::string InferenceEngine::infer(Arena& arena, IPreProcessor& pre, IPostProces
 
     std::vector<float> processed_data(input_tensor_size);
 
+    // --- PHASE 1: PREPROCESSING ---
     {
-        LumenTimer pre_timer("Data Preprocessing");
+        LumenTimer pre_timer(trace ? &trace->preprocess_ms : static_cast<double*>(nullptr));
         pre.transform(arena.get_data(), processed_data.data(), shape[3], shape[2]);
     }
 
+    // Create ONNX Tensor (Zero-Copy from processed_data)
     Ort::Value input_tensor = Ort::Value::CreateTensor<float>(
         memory_info,
         processed_data.data(),
@@ -67,8 +69,10 @@ std::string InferenceEngine::infer(Arena& arena, IPreProcessor& pre, IPostProces
     );
 
     std::vector<Ort::Value> output_tensors;
+
+    // --- PHASE 2: INFERENCE (ONNX RUN) ---
     {
-        LumenTimer onnx_timer("ONNX Session Run");
+        LumenTimer onnx_timer(trace ? &trace->inference_ms : static_cast<double*>(nullptr));
         output_tensors = session->Run(
             runOptions,
             input_node_names.data(),
@@ -80,12 +84,16 @@ std::string InferenceEngine::infer(Arena& arena, IPreProcessor& pre, IPostProces
     }
 
     float* output_data = output_tensors[0].GetTensorMutableData<float>();
-
-    // Note: Some models (like ResNet) might have 1000 classes, 
-    // but it's safer to get the count from the output tensor shape
     size_t output_count = output_tensors[0].GetTensorTypeAndShapeInfo().GetElementCount();
     std::vector<float> results(output_data, output_data + output_count);
 
-    return post.handle_results(results);
+    // --- PHASE 3: POST-PROCESSING ---
+    std::string final_result;
+    {
+        LumenTimer post_timer(trace ? &trace->postprocess_ms : static_cast<double*>(nullptr));
+        final_result = post.handle_results(results);
+    }
+
+    return final_result;
 }
 }

@@ -2,6 +2,7 @@
 #include <onnxruntime_cxx_api.h>
 #include "Arena.hpp"
 #include "IProcessor.hpp"
+#include "InferenceTrace.hpp"
 
 namespace lumen {
 class InferenceEngine{
@@ -22,6 +23,6 @@ private:
 public:
   InferenceEngine(std::string model_path);
   ~InferenceEngine();
-  std::string infer(lumen::Arena& arena, IPreProcessor& pre, IPostProcessor& post);
+  std::string infer(lumen::Arena& arena, IPreProcessor& pre, IPostProcessor& post, InferenceTrace* trace = nullptr);
 };
 }

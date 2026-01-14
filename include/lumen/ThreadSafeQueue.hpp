@@ -16,7 +16,7 @@ private:
 public:
   void push(T item) {
     std::lock_guard<std::mutex> lock(guard);
-    data.push(item);
+    data.push(std::move(item));
     cv.notify_one();
   }
 

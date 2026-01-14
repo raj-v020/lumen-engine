@@ -6,6 +6,7 @@
 #include <arpa/inet.h>
 #include <cerrno>
 #include <iostream>
+#include <atomic>
 
 #include "TCPServer.hpp"
 #include "InferenceEngine.hpp"
@@ -14,7 +15,10 @@
 #include "InferenceResult.hpp"
 #include "ThreadSafeQueue.hpp"
 
+extern std::atomic<bool> g_running;
+
 namespace lumen {
+
 ServerException::ServerException(const std::string& msg){
     full_msg = msg + ": " + std::strerror(errno);
 }
@@ -192,9 +196,13 @@ int TCPServer::finalize_request(ClientSession& session, int fd){
     fwrite(session.data_ptr, 1, session.expected_size, fp);
     fclose(fp);
     */
+    auto trace = std::make_unique<lumen::InferenceTrace>(fd);
+    InferenceTask task(fd,
+                       std::move(session.body_buffer),
+                       pre, post,
+                       std::move(trace));
 
-    InferenceTask task(fd, std::move(session.body_buffer), pre, post);
-    task_queue.push(task);
+    task_queue.push(std::move(task));
     session.state = ClientSession::INFERENCE_PENDING;
     return 1;
 }
@@ -207,7 +215,7 @@ void TCPServer::close_connection(int fd, size_t poll_idx){
     sessions.erase(fd);
 }
 void TCPServer::run() {
-    while (true) {
+    while (g_running) {
         InferenceResult res;
         while (response_queue.try_pop_immediate(res)) {
             if (sessions.count(res.client_fd)) {

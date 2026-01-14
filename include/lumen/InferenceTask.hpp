@@ -11,12 +11,21 @@ struct InferenceTask {
 
     std::shared_ptr<IPreProcessor> pre;
     std::shared_ptr<IPostProcessor> post;
-    InferenceTask(int fd, std::vector<uint8_t>&& tensor_data, 
+    std::unique_ptr<InferenceTrace> trace; 
+
+    InferenceTask(int fd, 
+                  std::vector<uint8_t>&& tensor_data, 
                   std::shared_ptr<IPreProcessor> pr, 
-                  std::shared_ptr<IPostProcessor> po)
-        : client_fd(fd), data(std::move(tensor_data)), 
-          pre(std::move(pr)), post(std::move(po)) {}
-    InferenceTask() : client_fd(-1) {}
+                  std::shared_ptr<IPostProcessor> po,
+                  std::unique_ptr<InferenceTrace> tr = nullptr)
+        : client_fd(fd), 
+          data(std::move(tensor_data)), 
+          pre(std::move(pr)), 
+          post(std::move(po)),
+          trace(std::move(tr))
+    {}
+
+    InferenceTask() : client_fd(-1), trace(nullptr) {}
 };
 }
 

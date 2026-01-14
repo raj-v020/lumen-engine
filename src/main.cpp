@@ -1,5 +1,8 @@
 #include <iostream>
 #include <vector>
+#include <csignal>
+#include <atomic>
+
 #include "TCPServer.hpp"
 #include "InferenceEngine.hpp"
 #include "SqueezeNet.hpp"
@@ -8,10 +11,18 @@
 #include "InferenceTask.hpp"
 #include "InferenceResult.hpp"
 #include "ThreadPool.hpp"
+#include "TelemetryManager.hpp"
 
 using namespace lumen;
 
+std::atomic<bool> g_running(true);
+
+void signal_handler(int) {
+    g_running = false;
+}
+
 int main() {
+    std::signal(SIGINT, signal_handler);
     std::string model_path = "../models/squeezenet1.1-7.onnx";
     // std::string model_path = "../models/resnet18-v1-7.onnx";
     std::string labels_path = "../models/labels.txt";
@@ -30,14 +41,19 @@ int main() {
 
     TCPServer server("8080", task_q, response_q, engine, pre, post);
     std::cout << "[Lumen] Server listening on port 8080..." << std::endl;
+    std::cout << "[Lumen] Telemetry Active. Watch stdout for heartbeat." << std::endl;
 
-    while (true) {
+    while (g_running) {
         try {
-            server.run();
+            server.run(); 
+            
         } catch (const std::exception& e) {
             std::cerr << "[Lumen Error] " << e.what() << std::endl;
         }
     }
+
+    std::cout << "[Lumen] Shutting down Telemetry..." << std::endl;
+    TelemetryManager::get().shutdown();
 
     return 0;
 }
