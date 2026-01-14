@@ -1,7 +1,7 @@
 #pragma once
 #include <onnxruntime_cxx_api.h>
 #include "Arena.hpp"
-#include "Processor.hpp"
+#include "IProcessor.hpp"
 
 namespace lumen {
 class InferenceEngine{

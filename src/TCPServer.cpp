@@ -9,8 +9,7 @@
 
 #include "TCPServer.hpp"
 #include "InferenceEngine.hpp"
-#include "Arena.hpp"
-#include "Processor.hpp"
+#include "IProcessor.hpp"
 #include "InferenceTask.hpp"
 #include "InferenceResult.hpp"
 #include "ThreadSafeQueue.hpp"
@@ -24,7 +23,7 @@ const char* ServerException::what() const noexcept{
     return full_msg.c_str();
 }
 
-TCPServer::TCPServer(const char *port, ThreadSafeQueue<InferenceTask>& tq, ThreadSafeQueue<InferenceResult>& rq, Arena& a, InferenceEngine& e, std::shared_ptr<IPreProcessor> pr, std::shared_ptr<IPostProcessor> po) : task_queue(tq), response_queue(rq), arena(a), engine(e), pre(pr), post(po){
+TCPServer::TCPServer(const char *port, ThreadSafeQueue<InferenceTask>& tq, ThreadSafeQueue<InferenceResult>& rq, InferenceEngine& e, std::shared_ptr<IPreProcessor> pr, std::shared_ptr<IPostProcessor> po) : task_queue(tq), response_queue(rq), engine(e), pre(pr), post(po){
     struct addrinfo hints = {}, *p, *res;
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
@@ -195,7 +194,6 @@ int TCPServer::finalize_request(ClientSession& session, int fd){
     */
 
     InferenceTask task(fd, std::move(session.body_buffer), pre, post);
-    arena.reset();
     task_queue.push(task);
     session.state = ClientSession::INFERENCE_PENDING;
     return 1;

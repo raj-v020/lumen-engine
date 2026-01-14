@@ -6,25 +6,13 @@
 #include <cmath>
 #include <fstream>
 #include <string>
+#include "IProcessor.hpp"
 
 namespace lumen {
-class IPreProcessor {
-public:
-    virtual ~IPreProcessor() = default;
-    virtual void transform(void* raw_arena, float* tensor_buffer, size_t width, size_t height) = 0;
-};
-
-class IPostProcessor {
-public:
-    virtual ~IPostProcessor() = default;
-    virtual std::string handle_results(const std::vector<float>& results) = 0;
-};
-
-
-class SqueezeNetPreProcessor : public IPreProcessor {
+class ImageNetPreProcessor : public IPreProcessor {
 public:
     /**
-     * SqueezeNet Requirements:
+     * ImageNet Requirements:
      * 1. Rescale pixels from [0, 255] to [0, 1]
      * 2. Normalize using ImageNet Mean: [0.485, 0.456, 0.406]
      * 3. Normalize using ImageNet Std:  [0.229, 0.224, 0.225]
@@ -51,12 +39,12 @@ public:
     }
 };
 
-class SqueezeNetPostProcessor : public IPostProcessor {
+class ImageNetPostProcessor : public IPostProcessor {
 private:
     std::vector<std::string> labels;
 
 public:
-    SqueezeNetPostProcessor(const std::string& label_path) {
+    ImageNetPostProcessor(const std::string& label_path) {
         std::ifstream file(label_path);
         std::string line;
         while (std::getline(file, line)) {

@@ -2,7 +2,7 @@
 
 #include <iostream>
 #include "Arena.hpp"
-#include "Processor.hpp"
+#include "IProcessor.hpp"
 #include "Timer.hpp"
 
 namespace lumen {

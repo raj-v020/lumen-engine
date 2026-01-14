@@ -26,6 +26,8 @@ set_target_properties(lumen_engine PROPERTIES
 
 target_include_directories(lumen_engine PUBLIC 
     "${CMAKE_CURRENT_SOURCE_DIR}/include/lumen"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/lumen/interfaces"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/lumen/models"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/utils"
 )
 
@@ -43,6 +45,8 @@ target_link_libraries(inference_test PRIVATE "${ONNX_LIB}" ${OpenCV_LIBS})
 target_include_directories(inference_test PRIVATE 
     "${ONNX_INCLUDE_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/lumen"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/lumen/interfaces"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/lumen/models"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/utils"
 )
 
@@ -57,5 +61,7 @@ target_link_libraries(test_dump PRIVATE "${ONNX_LIB}")
 target_include_directories(test_dump PRIVATE 
     "${ONNX_INCLUDE_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/lumen"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/lumen/interfaces"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/lumen/models"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/utils"
 )

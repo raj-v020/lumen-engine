@@ -9,7 +9,7 @@
 #include <unordered_map>
 #include "Arena.hpp"
 #include "InferenceEngine.hpp"
-#include "Processor.hpp"
+#include "IProcessor.hpp"
 #include "ThreadSafeQueue.hpp"
 #include "InferenceTask.hpp"
 #include "InferenceResult.hpp"
@@ -28,7 +28,6 @@ private:
   int sockfd;
   std::vector<struct pollfd> pollfds;
   int backlog = 10;
-  Arena& arena;
   InferenceEngine& engine;
   std::shared_ptr<IPreProcessor> pre;
   std::shared_ptr<IPostProcessor> post;
@@ -75,7 +74,7 @@ private:
   void close_connection(int fd, size_t poll_index);
 
 public:
-  TCPServer(const char *port, ThreadSafeQueue<InferenceTask>& tq, ThreadSafeQueue<InferenceResult>& rq, Arena& a, InferenceEngine& engine, std::shared_ptr<IPreProcessor> pr, std::shared_ptr<IPostProcessor> po);
+  TCPServer(const char *port, ThreadSafeQueue<InferenceTask>& tq, ThreadSafeQueue<InferenceResult>& rq, InferenceEngine& engine, std::shared_ptr<IPreProcessor> pr, std::shared_ptr<IPostProcessor> po);
   ~TCPServer();
   void run();
 };

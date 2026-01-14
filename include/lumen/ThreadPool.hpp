@@ -5,7 +5,6 @@
 #include "Arena.hpp"
 #include "ThreadSafeQueue.hpp"
 #include "InferenceEngine.hpp"
-#include "Processor.hpp"
 #include "InferenceTask.hpp"
 #include "InferenceResult.hpp"
 
