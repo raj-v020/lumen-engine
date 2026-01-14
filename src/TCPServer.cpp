@@ -1,3 +1,7 @@
+#include <lumen/network/TCPServer.hpp>
+#include <lumen/core/InferenceTask.hpp>
+#include <lumen/core/InferenceResult.hpp>
+#include <lumen/telemetry/TelemetryManager.hpp>
 #include <cstdio>
 #include <cstring>
 #include <unistd.h>
@@ -6,68 +10,66 @@
 #include <arpa/inet.h>
 #include <cerrno>
 #include <iostream>
-#include <atomic>
-
-#include "TCPServer.hpp"
-#include "InferenceEngine.hpp"
-#include "IProcessor.hpp"
-#include "InferenceTask.hpp"
-#include "InferenceResult.hpp"
-#include "ThreadSafeQueue.hpp"
 
 extern std::atomic<bool> g_running;
 
 namespace lumen {
+namespace network {
 
-ServerException::ServerException(const std::string& msg){
+ServerException::ServerException(const std::string& msg) {
     full_msg = msg + ": " + std::strerror(errno);
 }
 
-const char* ServerException::what() const noexcept{
+const char* ServerException::what() const noexcept {
     return full_msg.c_str();
 }
 
-TCPServer::TCPServer(const char *port, ThreadSafeQueue<InferenceTask>& tq, ThreadSafeQueue<InferenceResult>& rq, InferenceEngine& e, std::shared_ptr<IPreProcessor> pr, std::shared_ptr<IPostProcessor> po) : task_queue(tq), response_queue(rq), engine(e), pre(pr), post(po){
+TCPServer::TCPServer(const char *port, 
+                     std::shared_ptr<interfaces::ITaskQueue> tq, 
+                     std::shared_ptr<interfaces::IResultQueue> rq, 
+                     core::InferenceEngine& e, 
+                     std::shared_ptr<interfaces::IPreProcessor> pr, 
+                     std::shared_ptr<interfaces::IPostProcessor> po) 
+: task_queue(tq), response_queue(rq), engine(e), pre(pr), post(po) {
+
     struct addrinfo hints = {}, *p, *res;
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
+
     int status = getaddrinfo(nullptr, port, &hints, &res);
     if (status != 0) {
-        gai_strerror(status);
+        throw ServerException("getaddrinfo: " + std::string(gai_strerror(status)));
     }
 
-    for(p=res; p != nullptr; p = p->ai_next){
+    for(p = res; p != nullptr; p = p->ai_next) {
         if((sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) continue;
 
         int opt = 1;
         setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
         int flags = fcntl(sockfd, F_GETFL, 0);
-        if(flags == -1 || fcntl(sockfd, F_SETFL, flags | O_NONBLOCK) == -1){
+        if(flags == -1 || fcntl(sockfd, F_SETFL, flags | O_NONBLOCK) == -1) {
             close(sockfd);
             continue;
         }
 
-        if(bind(sockfd, (sockaddr *)p->ai_addr, p->ai_addrlen) == -1){
+        if(bind(sockfd, (sockaddr *)p->ai_addr, p->ai_addrlen) == -1) {
             close(sockfd);
             continue;
         }
-
         break;
-
     }
 
     freeaddrinfo(res);
-    if (p == nullptr) {
-        throw ServerException("Failed to bind to any address");
-    }
+    if (p == nullptr) throw ServerException("Failed to bind to any address");
 
     if (listen(sockfd, backlog) == -1) {
         close(sockfd);
         throw ServerException("listen");
     }
-    printf("[LumenEngine] Server started on port %s (Listening on fd: %d)\n", port, sockfd);
+
+    printf("[LumenNetwork] Server listening on port %s\n", port);
 
     struct pollfd listener_pfd;
     listener_pfd.fd = sockfd;
@@ -75,42 +77,28 @@ TCPServer::TCPServer(const char *port, ThreadSafeQueue<InferenceTask>& tq, Threa
     pollfds.push_back(listener_pfd);
 }
 
-TCPServer::~TCPServer(){
-    printf("[LumenEngine] Shutting down server. Closing all connections...\n");
+TCPServer::~TCPServer() {
     for (auto& pfd : pollfds) {
-        if (pfd.fd >= 0) {
-            close(pfd.fd);
-        }
+        if (pfd.fd >= 0) close(pfd.fd);
     }
-    printf("[LumenEngine] Offline.\n");
 }
 
-void TCPServer::handle_new_connection(){
+void TCPServer::handle_new_connection() {
     struct sockaddr_storage client_addr;
     socklen_t addr_size = sizeof(client_addr);
 
     int new_fd = accept(sockfd, (struct sockaddr *)&client_addr, &addr_size);
-    if (new_fd == -1) {
-        if (errno != EAGAIN && errno != EWOULDBLOCK) {
-            perror("accept");
-        }
-    } else {
-        int flags = fcntl(new_fd, F_GETFL, 0);
-        if (flags == -1 || fcntl(new_fd, F_SETFL, flags | O_NONBLOCK) == -1) {
-            perror("fcntl client");
-            close(new_fd);
-            return;
-        }
+    if (new_fd == -1) return;
 
-        struct pollfd client_pfd;
-        client_pfd.fd = new_fd;
-        client_pfd.events = POLLIN;
-        client_pfd.revents = 0;
-        pollfds.push_back(client_pfd);
+    int flags = fcntl(new_fd, F_GETFL, 0);
+    fcntl(new_fd, F_SETFL, flags | O_NONBLOCK);
 
-        printf("New connection accepted on fd %d\n", new_fd);
-        sessions[new_fd] = {};
-    }
+    struct pollfd client_pfd;
+    client_pfd.fd = new_fd;
+    client_pfd.events = POLLIN;
+    pollfds.push_back(client_pfd);
+
+    sessions[new_fd] = ClientSession();
 }
 
 int TCPServer::handle_client_data(int fd, size_t poll_idx){
@@ -188,23 +176,39 @@ int TCPServer::process_body(ClientSession& session, int fd){
     return bytes_received;
 }
 
-int TCPServer::finalize_request(ClientSession& session, int fd){
-    printf("Succesfully Received Tensor of %u bytes at %p\n", session.expected_size, (void*)session.body_buffer.data());
-    
-    /*
-    FILE* fp = fopen("../tests/images/dump_from_network.bin", "wb");
-    fwrite(session.data_ptr, 1, session.expected_size, fp);
-    fclose(fp);
-    */
-    auto trace = std::make_unique<lumen::InferenceTrace>(fd);
-    InferenceTask task(fd,
-                       std::move(session.body_buffer),
-                       pre, post,
-                       std::move(trace));
+int TCPServer::finalize_request(ClientSession& session, int fd) {
+    static uint32_t trace_id_gen = 0;
 
-    task_queue.push(std::move(task));
+    auto trace = std::make_unique<core::InferenceTrace>(trace_id_gen++);
+
+    core::InferenceTask task(
+        fd, 
+        std::move(session.body_buffer), 
+        pre, 
+        post, 
+        std::move(trace)
+    );
+
+    task_queue->push(std::move(task));
     session.state = ClientSession::INFERENCE_PENDING;
     return 1;
+}
+
+void TCPServer::handle_responses() {
+    while (auto res_opt = response_queue->pop_immediate()) {
+        auto& res = *res_opt;
+        if (sessions.count(res.client_fd)) {
+            ClientSession& session = sessions[res.client_fd];
+            session.response_buffer = std::move(res.response);
+            session.state = ClientSession::RESPONSE_SENDING;
+            session.bytes_sent = 0;
+
+            if (res.trace) {
+                res.trace->total_e2e_ms = res.trace->get_elapsed_ms();
+                lumen::telemetry::TelemetryManager::get().capture_trace(std::move(res.trace));
+            }
+        }
+    }
 }
 
 void TCPServer::close_connection(int fd, size_t poll_idx){
@@ -214,75 +218,50 @@ void TCPServer::close_connection(int fd, size_t poll_idx){
 
     sessions.erase(fd);
 }
+
+
 void TCPServer::run() {
-    while (g_running) {
-        InferenceResult res;
-        while (response_queue.try_pop_immediate(res)) {
-            if (sessions.count(res.client_fd)) {
-                ClientSession& session = sessions[res.client_fd];
-                session.response_buffer = std::move(res.response);
-                session.state = ClientSession::RESPONSE_SENDING;
-                session.bytes_sent = 0;
+    while (g_running.load()) {
+        handle_responses();
+
+        for(size_t i = 1; i < pollfds.size(); i++) {
+            int fd = pollfds[i].fd;
+            switch(sessions[fd].state) {
+                case ClientSession::RESPONSE_SENDING:  pollfds[i].events = POLLOUT; break;
+                case ClientSession::INFERENCE_PENDING: pollfds[i].events = 0;       break;
+                default:                               pollfds[i].events = POLLIN;  break;
             }
         }
-        for(size_t i = 1; i < pollfds.size(); i++){
-            switch(sessions[pollfds[i].fd].state){
-                case ClientSession::RESPONSE_SENDING:
-                    pollfds[i].events = POLLOUT;
-                    break;
-                case ClientSession::INFERENCE_PENDING:
-                    pollfds[i].events = 0;
-                    break;
-                default:
-                    pollfds[i].events = POLLIN;
-                    break;
-            }
-        }
+
         int count = poll(pollfds.data(), pollfds.size(), 10);
-        if (count == -1) {
-            if (errno == EINTR) continue;
-            throw ServerException("poll");
-        }
+        if (count <= 0) continue;
 
         size_t current_size = pollfds.size();
         for (size_t i = 0; i < current_size; i++) {
             if (pollfds[i].revents & POLLIN) {
-                int curr_fd = pollfds[i].fd;
-                if (curr_fd == sockfd) {
+                if (pollfds[i].fd == sockfd) {
                     handle_new_connection();
-                }else{
-                    int bytes_received;
-                    if((bytes_received = handle_client_data(curr_fd, i)) <= 0){
-                        close_connection(curr_fd, i);
-                        --i;
-                        --current_size;
+                } else {
+                    if (handle_client_data(pollfds[i].fd, i) <= 0) {
+                        close_connection(pollfds[i].fd, i);
+                        i--; current_size--;
                     }
                 }
-            } else if(pollfds[i].revents & POLLOUT){
-                int curr_fd = pollfds[i].fd;
-                int bytes_sent = 0;
-                ClientSession& session = sessions[curr_fd];
-                bytes_sent = send(curr_fd, session.response_buffer.c_str() + session.bytes_sent, session.response_buffer.size() - session.bytes_sent, 0);
+            } else if (pollfds[i].revents & POLLOUT) {
+                int fd = pollfds[i].fd;
+                ClientSession& s = sessions[fd];
+                int sent = send(fd, s.response_buffer.c_str() + s.bytes_sent, s.response_buffer.size() - s.bytes_sent, 0);
 
-                if(bytes_sent > 0){
-                    session.bytes_sent += bytes_sent;
-                    if(session.bytes_sent == session.response_buffer.size()){
-                        session.state = ClientSession::HEADER_PENDING;
-                        session.bytes_sent = 0;
-                        session.response_buffer.clear();
-
-                        session.expected_size = 0;
-                        session.bytes_received = 0;
-                        session.header_bytes_received = 0;
-                        session.body_buffer.clear();
-                    }
-                }else if (bytes_sent == -1 && errno != EAGAIN && errno != EWOULDBLOCK) {
-                    close_connection(curr_fd, i);
-                    --i;
-                    --current_size;
+                if (sent > 0) {
+                    s.bytes_sent += sent;
+                    if (s.bytes_sent == s.response_buffer.size()) s.reset();
+                } else if (sent < 0 && errno != EAGAIN) {
+                    close_connection(fd, i);
+                    i--; current_size--;
                 }
             }
         }
     }
 }
 }
+} 

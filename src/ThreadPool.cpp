@@ -1,30 +1,46 @@
-#include "ThreadPool.hpp"
-#include "ThreadSafeQueue.hpp"
-#include "Arena.hpp"
-#include "InferenceEngine.hpp"
-#include "InferenceTask.hpp"
-#include "InferenceResult.hpp"
-#include "Timer.hpp"
-#include "TelemetryManager.hpp"
+#include <lumen/concurrency/ThreadPool.hpp>
+#include <lumen/telemetry/TelemetryManager.hpp>
+#include <lumen/utils/Timer.hpp>
+#include <lumen/memory/StandardOrtAllocator.hpp> 
+#include <lumen/interfaces/ITaskQueue.hpp>
+#include <lumen/interfaces/IResultQueue.hpp>
+#include <cstring>
 
-namespace lumen{
-ThreadPool::ThreadPool(ThreadSafeQueue<InferenceTask>& tq, ThreadSafeQueue<InferenceResult>& rq, InferenceEngine& e) : task_queue(tq), response_queue(rq), engine(e){
-    unsigned int num_cores = std::thread::hardware_concurrency();
-    if (num_cores == 0) num_cores = 2;
+namespace lumen {
+namespace concurrency {
 
-    worker_arenas.reserve(num_cores);
-    for (size_t i = 0; i < num_cores; i++) {
-        worker_arenas.push_back(std::make_unique<Arena>(1024 * 1024 * 20));
+ThreadPool::ThreadPool(
+    std::shared_ptr<interfaces::ITaskQueue> tq, 
+    std::shared_ptr<interfaces::IResultQueue> rq, 
+    core::InferenceEngine& e,
+    size_t thread_count
+) : task_queue(tq), response_queue(rq), engine(e) {
+
+    if (thread_count == 0) {
+        thread_count = std::thread::hardware_concurrency();
+        if (thread_count == 0) thread_count = 2;
+    }
+
+    worker_allocators.reserve(thread_count);
+    
+    for (size_t i = 0; i < thread_count; i++) {
+        worker_allocators.push_back(std::make_shared<memory::StandardOrtAllocator>());
 
         workers.emplace_back([this, i]() {
-            this->worker_loop(i); 
+            this->worker_loop(static_cast<int>(i)); 
         });
     }
 }
 
-ThreadPool::~ThreadPool(){
-    task_queue.shutdown();
+ThreadPool::~ThreadPool() {
+    if (task_queue) {
+        task_queue->shutdown();
+    }
+    shutdown();
+}
 
+void ThreadPool::shutdown() {
+    stop = true;
     for (std::thread &worker : workers) {
         if (worker.joinable()) {
             worker.join();
@@ -32,44 +48,33 @@ ThreadPool::~ThreadPool(){
     }
 }
 
-void ThreadPool::worker_loop(int thread_id){
-    InferenceTask task;
-    while(task_queue.try_pop(task)){
-        // --- 1. TELEMETRY: QUEUE WAIT TIME ---
+void ThreadPool::worker_loop(int thread_id) {
+    auto& local_allocator = worker_allocators[thread_id];
+
+    while (!stop) {
+        auto task_opt = task_queue->pop();
+        
+        if (!task_opt) continue;
+
+        auto& task = *task_opt;
+
         if (task.trace) {
             auto now = std::chrono::steady_clock::now();
             std::chrono::duration<double, std::milli> wait_time = now - task.trace->start_ts;
             task.trace->queue_wait_ms = wait_time.count();
         }
 
-        // --- 2. TELEMETRY: TOTAL E2E TIMER ---
-        lumen::LumenTimer e2e_timer(task.trace ? &task.trace->total_e2e_ms : static_cast<double*>(nullptr));
+        double* e2e_target = task.trace ? &task.trace->total_e2e_ms : nullptr;
+        lumen::utils::Timer e2e_timer(e2e_target);
 
-        Arena& local_arena = *worker_arenas[thread_id];
-
-        void* target = local_arena.alloc<uint8_t>(task.data.size());
+        void* target = local_allocator->Alloc(task.data.size());
         std::memcpy(target, task.data.data(), task.data.size());
 
-        // --- 3. INFERENCE CALL ---
-        std::string res_str = engine.infer(
-            local_arena, 
-            *(task.pre), 
-            *(task.post), 
-            task.trace.get()
-        );
-
-        InferenceResult res = {
-            .client_fd = task.client_fd,
-            .response = std::move(res_str)
-        };
-        response_queue.push(std::move(res));
-
-        // --- 4. TELEMETRY: HANDOFF ---
-        if (task.trace) {
-            lumen::TelemetryManager::get().capture_trace(std::move(task.trace));
-        }
-
-        local_arena.reset();
+        core::InferenceResult res = engine.run(std::move(task), *local_allocator);
+        
+        response_queue->push(std::move(res));
     }
+}
+
 }
 }

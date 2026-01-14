@@ -1,6 +1,6 @@
 #pragma once
 
-#include "InferenceTrace.hpp"
+#include <lumen/core/InferenceTrace.hpp>
 #include <vector>
 #include <mutex>
 #include <memory>
@@ -9,7 +9,7 @@
 #include <condition_variable>
 
 namespace lumen {
-
+namespace telemetry {
 class TelemetryManager {
 private:
     TelemetryManager(); 
@@ -17,10 +17,11 @@ private:
 
     void reporting_loop();
 
-    void process_snapshot(std::vector<std::unique_ptr<InferenceTrace>>& batch);
+    void process_snapshot(std::vector<std::unique_ptr<core::InferenceTrace>>& batch);
 
     std::mutex m_mutex;
-    std::vector<std::unique_ptr<InferenceTrace>> m_trace_buffer;
+    std::condition_variable m_cv;
+    std::vector<std::unique_ptr<core::InferenceTrace>> m_trace_buffer;
 
     std::atomic<bool> m_running;
     std::thread m_reporter_thread;
@@ -34,8 +35,10 @@ public:
     TelemetryManager(const TelemetryManager&) = delete;
     TelemetryManager& operator=(const TelemetryManager&) = delete;
 
-    void capture_trace(std::unique_ptr<InferenceTrace> trace);
+    void capture_trace(std::unique_ptr<core::InferenceTrace> trace);
 
     void shutdown();
 };
+
+}
 }

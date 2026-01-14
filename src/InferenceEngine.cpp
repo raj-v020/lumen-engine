@@ -1,69 +1,73 @@
-#include "InferenceEngine.hpp"
-#include "InferenceTrace.hpp"
-
+#include <lumen/core/InferenceEngine.hpp>
+#include <lumen/utils/Timer.hpp>
 #include <iostream>
-#include "Arena.hpp"
-#include "IProcessor.hpp"
-#include "Timer.hpp"
 
 namespace lumen {
+namespace core {
+namespace utils = lumen::utils;
 
-InferenceEngine::InferenceEngine(std::string model_path){
+InferenceEngine::InferenceEngine(const std::string& model_path) {
     session = std::make_unique<Ort::Session>(env, model_path.c_str(), sessionOptions);
     Ort::AllocatorWithDefaultOptions allocator;
     
-    for (size_t i = 0; i < session->GetInputCount(); i++) {
-        // 1. Get Name
+    size_t num_input_nodes = session->GetInputCount();
+    input_names.reserve(num_input_nodes);
+    input_node_names.reserve(num_input_nodes);
+
+    for (size_t i = 0; i < num_input_nodes; i++) {
         auto name_ptr = session->GetInputNameAllocated(i, allocator);
         input_names.emplace_back(name_ptr.get());
         input_node_names.push_back(input_names.back().c_str());
 
-        // 2. GET SHAPE AUTOMATICALLY
         Ort::TypeInfo type_info = session->GetInputTypeInfo(i);
         auto tensor_info = type_info.GetTensorTypeAndShapeInfo();
         std::vector<int64_t> dims = tensor_info.GetShape();
 
-        // Handle dynamic batch sizes (-1 or 0) by forcing them to 1 for inference
         if(dims[0] <= 0) dims[0] = 1;
-
         input_node_dims.push_back(dims);
     }
 
-    for (size_t i = 0; i < session->GetOutputCount(); i++) {
+    size_t num_output_nodes = session->GetOutputCount();
+    output_names.reserve(num_output_nodes);
+    output_node_names.reserve(num_output_nodes);
+
+    for (size_t i = 0; i < num_output_nodes; i++) {
         auto name_ptr = session->GetOutputNameAllocated(i, allocator);
         output_names.emplace_back(name_ptr.get());
         output_node_names.push_back(output_names.back().c_str());
     }
 }
 
-
-InferenceEngine::~InferenceEngine(){
+InferenceEngine::~InferenceEngine() {
     std::cout << "Lumen InferenceEngine: Shutting down and releasing model resources." << std::endl;
 }
 
-std::string InferenceEngine::infer(Arena& arena, IPreProcessor& pre, IPostProcessor& post, InferenceTrace* trace) {
-
+InferenceResult InferenceEngine::run(InferenceTask task, interfaces::ILumenAllocator& allocator) {
     auto memory_info = Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU);
-
     const std::vector<int64_t>& shape = input_node_dims[0];
+    
     size_t input_tensor_size = 1;
     for (auto dim : shape) {
         if(dim > 0) input_tensor_size *= dim;
     }
 
-    std::vector<float> processed_data(input_tensor_size);
+    size_t input_float_count = 1;
+    for (auto dim : shape) {
+        if (dim > 0) input_float_count *= dim;
+    }
+
+    float* input_tensor_ptr = static_cast<float*>(allocator.Alloc(input_float_count * sizeof(float)));
 
     // --- PHASE 1: PREPROCESSING ---
     {
-        LumenTimer pre_timer(trace ? &trace->preprocess_ms : static_cast<double*>(nullptr));
-        pre.transform(arena.get_data(), processed_data.data(), shape[3], shape[2]);
+        utils::Timer pre_timer(task.trace ? &task.trace->preprocess_ms : nullptr);
+        task.pre->transform(task.data.data(), input_tensor_ptr, shape[3], shape[2]);
     }
 
-    // Create ONNX Tensor (Zero-Copy from processed_data)
     Ort::Value input_tensor = Ort::Value::CreateTensor<float>(
         memory_info,
-        processed_data.data(),
-        processed_data.size(),
+        input_tensor_ptr,
+        input_float_count,
         shape.data(),
         shape.size()
     );
@@ -72,7 +76,7 @@ std::string InferenceEngine::infer(Arena& arena, IPreProcessor& pre, IPostProces
 
     // --- PHASE 2: INFERENCE (ONNX RUN) ---
     {
-        LumenTimer onnx_timer(trace ? &trace->inference_ms : static_cast<double*>(nullptr));
+        utils::Timer onnx_timer(task.trace ? &task.trace->inference_ms : nullptr);
         output_tensors = session->Run(
             runOptions,
             input_node_names.data(),
@@ -88,12 +92,18 @@ std::string InferenceEngine::infer(Arena& arena, IPreProcessor& pre, IPostProces
     std::vector<float> results(output_data, output_data + output_count);
 
     // --- PHASE 3: POST-PROCESSING ---
-    std::string final_result;
+    std::string final_result_str;
     {
-        LumenTimer post_timer(trace ? &trace->postprocess_ms : static_cast<double*>(nullptr));
-        final_result = post.handle_results(results);
+        utils::Timer post_timer(task.trace ? &task.trace->postprocess_ms : nullptr);
+        final_result_str = task.post->handle_results(results);
     }
 
-    return final_result;
+    return InferenceResult {
+        .client_fd = task.client_fd,
+        .response = std::move(final_result_str),
+        .trace = std::move(task.trace) 
+    };
+}
+
 }
 }

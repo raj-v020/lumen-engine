@@ -1,11 +1,12 @@
+#include <lumen/telemetry/TelemetryManager.hpp>
 #include <iostream>
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
 #include <numeric>
-#include "TelemetryManager.hpp"
 
 namespace lumen {
+namespace telemetry {
 
 TelemetryManager::TelemetryManager() : m_running(true) {
     m_reporter_thread = std::thread(&TelemetryManager::reporting_loop, this);
@@ -18,25 +19,33 @@ TelemetryManager::~TelemetryManager() {
 void TelemetryManager::shutdown() {
     if (m_running) {
         m_running = false;
+        m_cv.notify_all();
         if (m_reporter_thread.joinable()) {
             m_reporter_thread.join();
         }
     }
 }
 
-void TelemetryManager::capture_trace(std::unique_ptr<InferenceTrace> trace) {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    m_trace_buffer.push_back(std::move(trace));
+void TelemetryManager::capture_trace(std::unique_ptr<core::InferenceTrace> trace) {
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_trace_buffer.push_back(std::move(trace));
+    }
+    m_cv.notify_one();
 }
 
 void TelemetryManager::reporting_loop() {
     while (m_running) {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-        if (!m_running) break;
-
-        std::vector<std::unique_ptr<InferenceTrace>> local_batch;
+        std::vector<std::unique_ptr<core::InferenceTrace>> local_batch;
+        
         {
-            std::lock_guard<std::mutex> lock(m_mutex);
+            std::unique_lock<std::mutex> lock(m_mutex);
+            m_cv.wait_for(lock, std::chrono::seconds(1), [this] {
+                return !m_trace_buffer.empty() || !m_running;
+            });
+
+            if (!m_running && m_trace_buffer.empty()) break;
+
             local_batch.swap(m_trace_buffer);
         }
 
@@ -46,16 +55,11 @@ void TelemetryManager::reporting_loop() {
     }
 }
 
-void TelemetryManager::process_snapshot(std::vector<std::unique_ptr<InferenceTrace>>& batch) {
+void TelemetryManager::process_snapshot(std::vector<std::unique_ptr<core::InferenceTrace>>& batch) {
     size_t count = batch.size();
     if (count == 0) return;
 
-    double sum_e2e = 0.0;
-    double sum_queue = 0.0;
-    double sum_pre = 0.0;
-    double sum_infer = 0.0;
-    double sum_post = 0.0;
-
+    double sum_e2e = 0.0, sum_queue = 0.0, sum_pre = 0.0, sum_infer = 0.0, sum_post = 0.0;
     std::vector<double> latencies;
     latencies.reserve(count);
 
@@ -69,24 +73,21 @@ void TelemetryManager::process_snapshot(std::vector<std::unique_ptr<InferenceTra
         sum_post  += t->postprocess_ms;
     }
 
-    double avg_e2e   = sum_e2e / count;
-    double avg_queue = sum_queue / count;
-    double avg_pre   = sum_pre / count;
-    double avg_infer = sum_infer / count;
-    double avg_post  = sum_post / count;
+    size_t p99_idx = static_cast<size_t>(count * 0.99);
+    if (p99_idx >= count) p99_idx = count - 1;
+    std::nth_element(latencies.begin(), latencies.begin() + p99_idx, latencies.end());
+    double p99_val = latencies[p99_idx];
 
-    size_t p99_index = static_cast<size_t>(count * 0.99);
-    if (p99_index >= count) p99_index = count - 1;
-    std::nth_element(latencies.begin(), latencies.begin() + p99_index, latencies.end());
-    double p99_latency = latencies[p99_index];
-
-    std::cout << "[TELEMETRY] RPS: " << count 
-              << " | Avg: " << std::fixed << std::setprecision(2) << avg_e2e << "ms"
-              << " (Q: " << avg_queue 
-              << ", Pre: " << avg_pre 
-              << ", Inf: " << avg_infer 
-              << ", Post: " << avg_post << ")"
-              << " | P99: " << p99_latency << "ms" 
+    std::cout << "\033[1;32m[LUMEN TELEMETRY]\033[0m " 
+              << "Batch: " << count << " reqs | "
+              << "Avg E2E: " << std::fixed << std::setprecision(2) << (sum_e2e / count) << "ms | "
+              << "P99: " << p99_val << "ms\n"
+              << "  └─ Breakdown: [Queue: " << (sum_queue / count) 
+              << "ms, Pre: " << (sum_pre / count) 
+              << "ms, Infer: " << (sum_infer / count) 
+              << "ms, Post: " << (sum_post / count) << "ms]" 
               << std::endl;
+}
+
 }
 }

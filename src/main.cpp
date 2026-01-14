@@ -2,18 +2,16 @@
 #include <vector>
 #include <csignal>
 #include <atomic>
+#include <memory>
 
-#include "TCPServer.hpp"
-#include "InferenceEngine.hpp"
-#include "SqueezeNet.hpp"
-#include "ResNet.hpp"
-#include "ThreadSafeQueue.hpp"
-#include "InferenceTask.hpp"
-#include "InferenceResult.hpp"
-#include "ThreadPool.hpp"
-#include "TelemetryManager.hpp"
+#include <lumen/network/TCPServer.hpp>
+#include <lumen/core/InferenceEngine.hpp>
+#include <lumen/concurrency/ThreadPool.hpp>
+#include <lumen/concurrency/NaiveTaskQueue.hpp>
+#include <lumen/concurrency/NaiveResultQueue.hpp>
+#include <lumen/telemetry/TelemetryManager.hpp>
 
-using namespace lumen;
+#include <lumen/models/ImageNetProcessor.hpp>
 
 std::atomic<bool> g_running(true);
 
@@ -23,37 +21,39 @@ void signal_handler(int) {
 
 int main() {
     std::signal(SIGINT, signal_handler);
+
     std::string model_path = "../models/squeezenet1.1-7.onnx";
-    // std::string model_path = "../models/resnet18-v1-7.onnx";
     std::string labels_path = "../models/labels.txt";
 
-    ThreadSafeQueue<InferenceTask> task_q;
-    ThreadSafeQueue<InferenceResult> response_q;
+    try {
+        auto task_q = std::make_shared<lumen::concurrency::NaiveTaskQueue>();
+        auto response_q = std::make_shared<lumen::concurrency::NaiveResultQueue>();
 
-    InferenceEngine engine(model_path);
-    auto pre = std::make_shared<SqueezeNetPreProcessor>();
-    auto post = std::make_shared<SqueezeNetPostProcessor>(labels_path);
-    /*
-    auto pre = std::make_shared<ResNetPreProcessor>();
-    auto post = std::make_shared<ResNetPostProcessor>(labels_path);
-    */
-    ThreadPool pool(task_q, response_q, engine);
+        lumen::core::InferenceEngine engine(model_path);
 
-    TCPServer server("8080", task_q, response_q, engine, pre, post);
-    std::cout << "[Lumen] Server listening on port 8080..." << std::endl;
-    std::cout << "[Lumen] Telemetry Active. Watch stdout for heartbeat." << std::endl;
+        auto pre = std::make_shared<lumen::core::SqueezeNetPreProcessor>();
+        auto post = std::make_shared<lumen::core::SqueezeNetPostProcessor>(labels_path);
 
-    while (g_running) {
-        try {
+        lumen::concurrency::ThreadPool pool(task_q, response_q, engine, 8);
+
+        lumen::network::TCPServer server("8080", task_q, response_q, engine, pre, post);
+
+        std::cout << "\033[1;36m[LUMEN]\033[0m System Initialized. Entering main loop..." << std::endl;
+        std::cout << "\033[1;36m[LUMEN]\033[0m Press Ctrl+C to shutdown gracefully." << std::endl;
+
+        while (g_running) {
             server.run(); 
-            
-        } catch (const std::exception& e) {
-            std::cerr << "[Lumen Error] " << e.what() << std::endl;
         }
+
+    } catch (const std::exception& e) {
+        std::cerr << "\033[1;31m[LUMEN CRITICAL ERROR]\033[0m " << e.what() << std::endl;
+        return 1;
     }
 
-    std::cout << "[Lumen] Shutting down Telemetry..." << std::endl;
-    TelemetryManager::get().shutdown();
+    std::cout << "[LUMEN] Shutting down Telemetry..." << std::endl;
+    lumen::telemetry::TelemetryManager::get().shutdown();
+
+    std::cout << "[LUMEN] Goodbye." << std::endl;
 
     return 0;
 }
