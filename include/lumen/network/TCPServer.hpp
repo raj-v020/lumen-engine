@@ -32,7 +32,6 @@ private:
     std::vector<struct pollfd> pollfds;
     int backlog = 10;
 
-    core::InferenceEngine& engine;
     std::shared_ptr<interfaces::IPreProcessor> pre;
     std::shared_ptr<interfaces::IPostProcessor> post;
 
@@ -83,7 +82,6 @@ public:
     TCPServer(const char *port, 
               std::shared_ptr<interfaces::ITaskQueue> tq, 
               std::shared_ptr<interfaces::IResultQueue> rq, 
-              core::InferenceEngine& engine, 
               std::shared_ptr<interfaces::IPreProcessor> pr, 
               std::shared_ptr<interfaces::IPostProcessor> po);
     ~TCPServer();

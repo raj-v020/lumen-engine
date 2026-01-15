@@ -5,13 +5,12 @@
 #include <memory>
 
 #include <lumen/network/TCPServer.hpp>
-#include <lumen/core/InferenceEngine.hpp>
 #include <lumen/concurrency/ThreadPool.hpp>
 #include <lumen/concurrency/NaiveTaskQueue.hpp>
+// #include <lumen/concurrency/LockFreeQueue.hpp> // Phase 3 teaser
 #include <lumen/concurrency/NaiveResultQueue.hpp>
 #include <lumen/telemetry/TelemetryManager.hpp>
 #include <lumen/utils/LumenConfigManager.hpp>
-
 #include <lumen/models/ImageNetProcessor.hpp> 
 
 std::atomic<bool> g_running(true);
@@ -27,6 +26,7 @@ int main() {
     config.load_from_file("../config.json");
 
     try {
+        // 1. Task Queue Selection
         std::shared_ptr<lumen::interfaces::ITaskQueue> task_q;
         if (config.get_queue_type() == lumen::utils::QueueType::NAIVE_MUTEX) {
             task_q = std::make_shared<lumen::concurrency::NaiveTaskQueue>();
@@ -34,8 +34,7 @@ int main() {
         
         auto response_q = std::make_shared<lumen::concurrency::NaiveResultQueue>();
 
-        lumen::core::InferenceEngine engine(config.get_model_path());
-
+        // 2. Processor Initialization
         std::shared_ptr<lumen::interfaces::IPreProcessor> pre;
         std::shared_ptr<lumen::interfaces::IPostProcessor> post;
 
@@ -45,16 +44,25 @@ int main() {
             post = std::make_shared<lumen::core::SqueezeNetPostProcessor>(labels);
         }
 
-        lumen::concurrency::ThreadPool pool(task_q, response_q, engine, 8);
-        lumen::network::TCPServer server("8080", task_q, response_q, engine, pre, post);
+        // 3. THE POD FACTORY (ThreadPool)
+        lumen::concurrency::ThreadPool pool(
+            task_q, 
+            response_q, 
+            config.get_model_path(), 
+            8
+        );
+
+        // 4. SERVER INITIALIZATION
+        lumen::network::TCPServer server("8080", task_q, response_q, pre, post);
 
         std::cout << "\033[1;36m[LUMEN]\033[0m Lab Initialized." << std::endl;
         std::cout << "\033[1;36m[LUMEN]\033[0m Profile: " 
-                  << (config.get_alloc_type() == lumen::utils::AllocatorType::STANDARD ? "Standard" : "Arena") 
-                  << " | Queue: Naive" << std::endl;
+                  << (config.get_alloc_type() == lumen::utils::AllocatorType::LUMEN_ARENA ? "Arena" : "Standard") 
+                  << " | Mode: Isolated Pods (1:1:1)" << std::endl;
 
+        // 5. THE RUN LOOP
         while (g_running) {
-            server.run(); 
+            server.run();
         }
 
     } catch (const std::exception& e) {

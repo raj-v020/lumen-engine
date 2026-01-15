@@ -54,26 +54,24 @@ public:
         }
     }
 
-    std::string handle_results(const std::vector<float>& results) override {
-        if (results.empty()) return "Error: Empty Tensor";
+    std::string handle_results(const float* results_ptr, size_t count) override {
+        if (!results_ptr || count == 0) return "Error: Empty or Invalid Tensor";
 
-        // 1. Find Argmax
-        auto it = std::max_element(results.begin(), results.end());
-        int class_id = static_cast<int>(std::distance(results.begin(), it));
+        const float* it = std::max_element(results_ptr, results_ptr + count);
+        int class_id = static_cast<int>(it - results_ptr);
         float max_val = *it;
 
-        // 2. Compute Softmax (with stability fix)
         float sum_exp = 0.0f;
-        for (float val : results) {
-            sum_exp += std::exp(val - max_val);
+        for (size_t i = 0; i < count; ++i) {
+            sum_exp += std::exp(results_ptr[i] - max_val);
         }
-        float confidence = std::exp(max_val - max_val) / sum_exp;
 
-        // 3. Map to Label
+        float confidence = 1.0f / sum_exp;
+
         std::string label_name = (class_id < (int)labels.size()) ? labels[class_id] : "Unknown";
 
         std::cout << "\033[1;32m[RESULT]\033[0m Class: " << label_name 
-                  << " (" << (int)(confidence * 100) << "%)" << std::endl;
+            << " (" << (int)(confidence * 100) << "%)" << std::endl;
 
         return label_name;
     }

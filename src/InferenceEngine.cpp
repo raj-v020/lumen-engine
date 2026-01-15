@@ -1,3 +1,5 @@
+#include <onnxruntime_cxx_api.h>
+#include <onnxruntime_c_api.h>
 #include <lumen/core/InferenceEngine.hpp>
 #include <lumen/utils/Timer.hpp>
 #include <iostream>
@@ -6,20 +8,35 @@ namespace lumen {
 namespace core {
 namespace utils = lumen::utils;
 
-InferenceEngine::InferenceEngine(const std::string& model_path) {
-    session = std::make_unique<Ort::Session>(env, model_path.c_str(), sessionOptions);
-    Ort::AllocatorWithDefaultOptions allocator;
+InferenceEngine::InferenceEngine(
+    const std::string& model_path, 
+    Ort::Env* local_env,
+    OrtAllocator* allocator
+) {
+    sessionOptions.SetIntraOpNumThreads(1);
+    sessionOptions.SetInterOpNumThreads(1);
+    sessionOptions.SetExecutionMode(ORT_SEQUENTIAL);
+
+    if (allocator) {
+        sessionOptions.AddConfigEntry("session.use_env_allocators", "1");
+        sessionOptions.EnableCpuMemArena();
+        sessionOptions.EnableMemPattern();
+    }
+
+    session = std::make_unique<Ort::Session>(*local_env, model_path.c_str(), sessionOptions);
+    
+    Ort::AllocatorWithDefaultOptions default_allocator;
     
     size_t num_input_nodes = session->GetInputCount();
     input_names.reserve(num_input_nodes);
     input_node_names.reserve(num_input_nodes);
 
     for (size_t i = 0; i < num_input_nodes; i++) {
-        auto name_ptr = session->GetInputNameAllocated(i, allocator);
+        auto name_ptr = session->GetInputNameAllocated(i, default_allocator);
         input_names.emplace_back(name_ptr.get());
         input_node_names.push_back(input_names.back().c_str());
 
-        Ort::TypeInfo type_info = session->GetInputTypeInfo(i);
+         Ort::TypeInfo type_info = session->GetInputTypeInfo(i);
         auto tensor_info = type_info.GetTensorTypeAndShapeInfo();
         std::vector<int64_t> dims = tensor_info.GetShape();
 
@@ -30,11 +47,18 @@ InferenceEngine::InferenceEngine(const std::string& model_path) {
     size_t num_output_nodes = session->GetOutputCount();
     output_names.reserve(num_output_nodes);
     output_node_names.reserve(num_output_nodes);
-
     for (size_t i = 0; i < num_output_nodes; i++) {
-        auto name_ptr = session->GetOutputNameAllocated(i, allocator);
+        auto name_ptr = session->GetOutputNameAllocated(i, default_allocator);
         output_names.emplace_back(name_ptr.get());
         output_node_names.push_back(output_names.back().c_str());
+
+        Ort::TypeInfo type_info = session->GetOutputTypeInfo(i);
+        auto tensor_info = type_info.GetTensorTypeAndShapeInfo();
+        std::vector<int64_t> dims = tensor_info.GetShape();
+
+        if (dims.size() > 0 && dims[0] <= 0) dims[0] = 1;
+
+        output_node_dims.push_back(dims);
     }
 }
 
@@ -43,59 +67,48 @@ InferenceEngine::~InferenceEngine() {
 }
 
 InferenceResult InferenceEngine::run(InferenceTask task, interfaces::ILumenAllocator& allocator) {
-    auto memory_info = Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU);
-    const std::vector<int64_t>& shape = input_node_dims[0];
-    
-    size_t input_tensor_size = 1;
-    for (auto dim : shape) {
-        if(dim > 0) input_tensor_size *= dim;
-    }
+    // 1. Calculate Sizes
+    const std::vector<int64_t>& input_shape = input_node_dims[0];
+    size_t input_count = 1;
+    for (auto dim : input_shape) if (dim > 0) input_count *= dim;
 
-    size_t input_float_count = 1;
-    for (auto dim : shape) {
-        if (dim > 0) input_float_count *= dim;
-    }
-
-    float* input_tensor_ptr = static_cast<float*>(allocator.Alloc(input_float_count * sizeof(float)));
-
-    // --- PHASE 1: PREPROCESSING ---
+    // 2. Allocate Input Tensor from the Arena
+    float* input_ptr = static_cast<float*>(allocator.Alloc(input_count * sizeof(float)));
+    // 3. Phase 1: Preprocessing
     {
         utils::Timer pre_timer(task.trace ? &task.trace->preprocess_ms : nullptr);
-        task.pre->transform(task.data.data(), input_tensor_ptr, shape[3], shape[2]);
+        task.pre->transform(task.data.data(), input_ptr, input_shape[3], input_shape[2]);
     }
 
+    // 4. Wrap Input in Ort::Value
+    auto memory_info = Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU);
     Ort::Value input_tensor = Ort::Value::CreateTensor<float>(
-        memory_info,
-        input_tensor_ptr,
-        input_float_count,
-        shape.data(),
-        shape.size()
-    );
+        memory_info, input_ptr, input_count, input_shape.data(), input_shape.size());
 
-    std::vector<Ort::Value> output_tensors;
+    // 5. PRE-ALLOCATE OUTPUTS
+    const std::vector<int64_t>& output_shape = output_node_dims[0];
+    size_t output_count = 1;
+    for (auto dim : output_shape) if (dim > 0) output_count *= dim;
 
-    // --- PHASE 2: INFERENCE (ONNX RUN) ---
+    float* output_ptr = static_cast<float*>(allocator.Alloc(output_count * sizeof(float)));
+    
+    Ort::Value output_tensor = Ort::Value::CreateTensor<float>(
+        memory_info, output_ptr, output_count, output_shape.data(), output_shape.size());
+
+    // 6. Phase 2: Inference
     {
         utils::Timer onnx_timer(task.trace ? &task.trace->inference_ms : nullptr);
-        output_tensors = session->Run(
-            runOptions,
-            input_node_names.data(),
-            &input_tensor,
-            1,
-            output_node_names.data(),
-            1
-        );
+        
+        session->Run(runOptions, 
+                    input_node_names.data(), &input_tensor, 1,
+                    output_node_names.data(), &output_tensor, 1);
     }
 
-    float* output_data = output_tensors[0].GetTensorMutableData<float>();
-    size_t output_count = output_tensors[0].GetTensorTypeAndShapeInfo().GetElementCount();
-    std::vector<float> results(output_data, output_data + output_count);
-
-    // --- PHASE 3: POST-PROCESSING ---
+    // 7. Phase 3: Post-processing
     std::string final_result_str;
     {
         utils::Timer post_timer(task.trace ? &task.trace->postprocess_ms : nullptr);
-        final_result_str = task.post->handle_results(results);
+        final_result_str = task.post->handle_results(output_ptr, output_count);
     }
 
     return InferenceResult {
@@ -104,6 +117,9 @@ InferenceResult InferenceEngine::run(InferenceTask task, interfaces::ILumenAlloc
         .trace = std::move(task.trace) 
     };
 }
+}
+}
 
-}
-}
+
+
+

@@ -2,9 +2,12 @@
 #include <lumen/telemetry/TelemetryManager.hpp>
 #include <lumen/utils/Timer.hpp>
 #include <lumen/memory/StandardOrtAllocator.hpp> 
+#include <lumen/memory/LumenArena.hpp>
 #include <lumen/interfaces/ITaskQueue.hpp>
 #include <lumen/interfaces/IResultQueue.hpp>
+#include <lumen/utils/LumenConfigManager.hpp>
 #include <cstring>
+#include <onnxruntime_cxx_api.h>
 
 namespace lumen {
 namespace concurrency {
@@ -12,24 +15,51 @@ namespace concurrency {
 ThreadPool::ThreadPool(
     std::shared_ptr<interfaces::ITaskQueue> tq, 
     std::shared_ptr<interfaces::IResultQueue> rq, 
-    core::InferenceEngine& e,
+    const std::string& model_path,
     size_t thread_count
-) : task_queue(tq), response_queue(rq), engine(e) {
+) : task_queue(tq), response_queue(rq) {
 
     if (thread_count == 0) {
         thread_count = std::thread::hardware_concurrency();
         if (thread_count == 0) thread_count = 2;
     }
+    auto& config = utils::ConfigManager::get();
+    auto alloc_type = config.get_alloc_type();
 
-    worker_allocators.reserve(thread_count);
+    worker_pods.reserve(thread_count);
     
     for (size_t i = 0; i < thread_count; i++) {
-        worker_allocators.push_back(std::make_shared<memory::StandardOrtAllocator>());
+        auto pod = std::make_unique<WorkerPod>();
+
+        std::string env_name = "lumen_worker_" + std::to_string(i);
+        pod->env = std::make_unique<Ort::Env>(ORT_LOGGING_LEVEL_WARNING, env_name.c_str());
+
+        OrtAllocator* ort_interface = nullptr;
+
+        if (alloc_type == utils::AllocatorType::LUMEN_ARENA) {
+            auto arena = std::make_shared<memory::LumenArena>(64 * 1024 * 1024);
+            pod->allocator = arena;
+            ort_interface = arena->get_ort_interface();
+
+            auto& api = Ort::GetApi();
+            Ort::ThrowOnError(api.RegisterAllocator(static_cast<OrtEnv*>(*pod->env), ort_interface));
+            
+        } else {
+            pod->allocator = std::make_shared<memory::StandardOrtAllocator>();
+        }
+
+        pod->engine = std::make_unique<core::InferenceEngine>(model_path, pod->env.get(), ort_interface);
+
+        worker_pods.push_back(std::move(pod));
 
         workers.emplace_back([this, i]() {
             this->worker_loop(static_cast<int>(i)); 
         });
     }
+
+    std::cout << "[LUMEN] ThreadPool initialized with " << thread_count 
+              << " isolated pods using " << (alloc_type == utils::AllocatorType::LUMEN_ARENA ? "LumenArena" : "Standard") 
+              << " allocators." << std::endl;
 }
 
 ThreadPool::~ThreadPool() {
@@ -49,11 +79,15 @@ void ThreadPool::shutdown() {
 }
 
 void ThreadPool::worker_loop(int thread_id) {
-    auto& local_allocator = worker_allocators[thread_id];
+    auto& pod = *worker_pods[thread_id];
 
     while (!stop) {
         auto task_opt = task_queue->pop();
-        
+
+        if (auto* arena = dynamic_cast<memory::LumenArena*>(pod.allocator.get())) {
+            arena->reset(); 
+        }
+
         if (!task_opt) continue;
 
         auto& task = *task_opt;
@@ -64,13 +98,7 @@ void ThreadPool::worker_loop(int thread_id) {
             task.trace->queue_wait_ms = wait_time.count();
         }
 
-        double* e2e_target = task.trace ? &task.trace->total_e2e_ms : nullptr;
-        lumen::utils::Timer e2e_timer(e2e_target);
-
-        void* target = local_allocator->Alloc(task.data.size());
-        std::memcpy(target, task.data.data(), task.data.size());
-
-        core::InferenceResult res = engine.run(std::move(task), *local_allocator);
+        core::InferenceResult res = pod.engine->run(std::move(task), *pod.allocator);
         
         response_queue->push(std::move(res));
     }

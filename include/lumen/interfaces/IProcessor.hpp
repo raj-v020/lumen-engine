@@ -11,7 +11,7 @@ public:
 class IPostProcessor {
 public:
     virtual ~IPostProcessor() = default;
-    virtual std::string handle_results(const std::vector<float>& results) = 0;
+    virtual std::string handle_results(const float* results_ptr, size_t count) = 0;
 };
 }
 }

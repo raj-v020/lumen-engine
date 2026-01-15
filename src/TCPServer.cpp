@@ -27,11 +27,9 @@ const char* ServerException::what() const noexcept {
 TCPServer::TCPServer(const char *port, 
                      std::shared_ptr<interfaces::ITaskQueue> tq, 
                      std::shared_ptr<interfaces::IResultQueue> rq, 
-                     core::InferenceEngine& e, 
                      std::shared_ptr<interfaces::IPreProcessor> pr, 
                      std::shared_ptr<interfaces::IPostProcessor> po) 
-: task_queue(tq), response_queue(rq), engine(e), pre(pr), post(po) {
-
+: task_queue(tq), response_queue(rq), pre(pr), post(po){
     struct addrinfo hints = {}, *p, *res;
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;

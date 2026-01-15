@@ -4,6 +4,7 @@
 #include <thread>
 #include <memory>
 #include <atomic>
+#include <onnxruntime_cxx_api.h>
 
 #include <lumen/interfaces/ITaskQueue.hpp>
 #include <lumen/interfaces/IResultQueue.hpp>
@@ -13,14 +14,18 @@
 namespace lumen {
 namespace concurrency {
 
+struct WorkerPod {
+    std::unique_ptr<Ort::Env> env;
+    std::shared_ptr<interfaces::ILumenAllocator> allocator;
+    std::unique_ptr<core::InferenceEngine> engine;
+};
+
 class ThreadPool {
 private:
   std::shared_ptr<interfaces::ITaskQueue> task_queue;
   std::shared_ptr<interfaces::IResultQueue> response_queue;
-
-  core::InferenceEngine& engine;
-
-  std::vector<std::shared_ptr<interfaces::ILumenAllocator>> worker_allocators;
+  
+  std::vector<std::unique_ptr<WorkerPod>> worker_pods;
 
   std::vector<std::thread> workers;
   std::atomic<bool> stop{false}; 
@@ -29,7 +34,7 @@ private:
     ThreadPool(
       std::shared_ptr<interfaces::ITaskQueue> tq, 
       std::shared_ptr<interfaces::IResultQueue> rq, 
-      core::InferenceEngine& e,
+      const std::string& model_path,
       size_t thread_count
     );
 
