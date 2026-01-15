@@ -10,8 +10,9 @@
 #include <lumen/concurrency/NaiveTaskQueue.hpp>
 #include <lumen/concurrency/NaiveResultQueue.hpp>
 #include <lumen/telemetry/TelemetryManager.hpp>
+#include <lumen/utils/LumenConfigManager.hpp>
 
-#include <lumen/models/ImageNetProcessor.hpp>
+#include <lumen/models/ImageNetProcessor.hpp> 
 
 std::atomic<bool> g_running(true);
 
@@ -22,24 +23,35 @@ void signal_handler(int) {
 int main() {
     std::signal(SIGINT, signal_handler);
 
-    std::string model_path = "../models/squeezenet1.1-7.onnx";
-    std::string labels_path = "../models/labels.txt";
+    auto& config = lumen::utils::ConfigManager::get();
+    config.load_from_file("../config.json");
 
     try {
-        auto task_q = std::make_shared<lumen::concurrency::NaiveTaskQueue>();
+        std::shared_ptr<lumen::interfaces::ITaskQueue> task_q;
+        if (config.get_queue_type() == lumen::utils::QueueType::NAIVE_MUTEX) {
+            task_q = std::make_shared<lumen::concurrency::NaiveTaskQueue>();
+        } 
+        
         auto response_q = std::make_shared<lumen::concurrency::NaiveResultQueue>();
 
-        lumen::core::InferenceEngine engine(model_path);
+        lumen::core::InferenceEngine engine(config.get_model_path());
 
-        auto pre = std::make_shared<lumen::core::SqueezeNetPreProcessor>();
-        auto post = std::make_shared<lumen::core::SqueezeNetPostProcessor>(labels_path);
+        std::shared_ptr<lumen::interfaces::IPreProcessor> pre;
+        std::shared_ptr<lumen::interfaces::IPostProcessor> post;
+
+        if (config.get_processor_type() == lumen::utils::ProcessorType::IMAGENET) {
+            pre = std::make_shared<lumen::core::SqueezeNetPreProcessor>();
+            std::string labels = config.get_metadata_extra("label_path");
+            post = std::make_shared<lumen::core::SqueezeNetPostProcessor>(labels);
+        }
 
         lumen::concurrency::ThreadPool pool(task_q, response_q, engine, 8);
-
         lumen::network::TCPServer server("8080", task_q, response_q, engine, pre, post);
 
-        std::cout << "\033[1;36m[LUMEN]\033[0m System Initialized. Entering main loop..." << std::endl;
-        std::cout << "\033[1;36m[LUMEN]\033[0m Press Ctrl+C to shutdown gracefully." << std::endl;
+        std::cout << "\033[1;36m[LUMEN]\033[0m Lab Initialized." << std::endl;
+        std::cout << "\033[1;36m[LUMEN]\033[0m Profile: " 
+                  << (config.get_alloc_type() == lumen::utils::AllocatorType::STANDARD ? "Standard" : "Arena") 
+                  << " | Queue: Naive" << std::endl;
 
         while (g_running) {
             server.run(); 
@@ -54,6 +66,5 @@ int main() {
     lumen::telemetry::TelemetryManager::get().shutdown();
 
     std::cout << "[LUMEN] Goodbye." << std::endl;
-
     return 0;
 }

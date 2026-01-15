@@ -36,6 +36,7 @@ public:
     TelemetryManager& operator=(const TelemetryManager&) = delete;
 
     void capture_trace(std::unique_ptr<core::InferenceTrace> trace);
+    void save_to_csv(const core::InferenceTrace& trace, const std::string& path);
 
     void shutdown();
 };

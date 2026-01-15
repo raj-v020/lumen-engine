@@ -4,6 +4,11 @@
 #include <cmath>
 #include <iomanip>
 #include <numeric>
+#include <fstream>
+#include <filesystem>
+#include <iomanip>
+#include <nlohmann/json.hpp>
+#include <lumen/utils/LumenConfigManager.hpp>
 
 namespace lumen {
 namespace telemetry {
@@ -63,14 +68,20 @@ void TelemetryManager::process_snapshot(std::vector<std::unique_ptr<core::Infere
     std::vector<double> latencies;
     latencies.reserve(count);
 
+    auto& config = lumen::utils::ConfigManager::get();
+    std::string path = config.get_telemetry_csv_path();
+
     for (const auto& t : batch) {
-        latencies.push_back(t->total_e2e_ms);
-        
-        sum_e2e   += t->total_e2e_ms;
-        sum_queue += t->queue_wait_ms;
-        sum_pre   += t->preprocess_ms;
-        sum_infer += t->inference_ms;
-        sum_post  += t->postprocess_ms;
+        if (t) {
+            save_to_csv(*t, path);
+            latencies.push_back(t->total_e2e_ms);
+
+            sum_e2e   += t->total_e2e_ms;
+            sum_queue += t->queue_wait_ms;
+            sum_pre   += t->preprocess_ms;
+            sum_infer += t->inference_ms;
+            sum_post  += t->postprocess_ms;
+        }
     }
 
     size_t p99_idx = static_cast<size_t>(count * 0.99);
@@ -87,6 +98,34 @@ void TelemetryManager::process_snapshot(std::vector<std::unique_ptr<core::Infere
               << "ms, Infer: " << (sum_infer / count) 
               << "ms, Post: " << (sum_post / count) << "ms]" 
               << std::endl;
+}
+
+void TelemetryManager::save_to_csv(const core::InferenceTrace& trace, const std::string& path) {
+    bool exists = std::filesystem::exists(path);
+    std::ofstream file(path, std::ios::app);
+    
+    if (!file.is_open()) return;
+
+    auto& config = lumen::utils::ConfigManager::get();
+    std::string q_name = (config.get_queue_type() == utils::QueueType::LOCK_FREE_RING) ? "LockFree" : "Naive";
+    std::string a_name = (config.get_alloc_type() == utils::AllocatorType::LUMEN_ARENA) ? "Arena" : "Standard";
+
+    if (!exists || std::filesystem::file_size(path) == 0) {
+        file << "timestamp,request_id,queue_type,alloc_type,queue_ms,preprocess_ms,inference_ms,postprocess_ms,total_ms\n";
+    }
+
+    double total = trace.queue_wait_ms + trace.preprocess_ms + trace.inference_ms + trace.postprocess_ms;
+
+    file << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()) << ","
+         << trace.request_id << ","
+         << q_name << ","
+         << a_name << ","
+         << std::fixed << std::setprecision(4)
+         << trace.queue_wait_ms << ","
+         << trace.preprocess_ms << ","
+         << trace.inference_ms << ","
+         << trace.postprocess_ms << ","
+         << total << "\n";
 }
 
 }

@@ -1,0 +1,15 @@
+{
+    "engine": {
+        "queue_type": "naive_mutex",
+        "allocator_type": "standard",
+        "telemetry_csv_path": "../results/lumen_squeezenet_baseline.csv"
+    },
+    "model": {
+        "path": "../models/squeezenet1.1-7.onnx",
+        "processor_type": "imagenet",
+        "metadata": {
+            "type": "classification",
+            "label_path": "../models/labels.txt"
+        }
+    }
+}

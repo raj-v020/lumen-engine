@@ -9,10 +9,9 @@ set(ONNX_LIB "${ONNX_LIB_DIR}/libonnxruntime.so")
 set(ONNX_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/third_party/onnxruntime/include")
 
 # 2. Recursive Source Discovery
-# CONFIGURE_DEPENDS ensures CMake re-runs if you add new files to these folders
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "src/*.cpp")
 
-# Create a list of sources for the library/test (everything except main.cpp)
+# Create a list of sources (everything except main.cpp) for tests
 set(LIB_SOURCES ${SOURCES})
 list(REMOVE_ITEM LIB_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp")
 
@@ -25,15 +24,22 @@ set_target_properties(lumen_engine PROPERTIES
     BUILD_WITH_INSTALL_RPATH TRUE
 )
 
-# Crucial: New include strategy
-# We now only need to point to the root 'include' folder because our code 
-# uses directory-prefixed includes: #include <lumen/core/Engine.hpp>
+# --- UPDATED: Include Strategy ---
+# 1. Project Headers: include/lumen/...
+# 2. Third Party: third_party/nlohmann/...
 target_include_directories(lumen_engine PUBLIC 
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party"
 )
 
 target_include_directories(lumen_engine PRIVATE "${ONNX_INCLUDE_DIR}")
 target_link_libraries(lumen_engine PRIVATE "${ONNX_LIB}" pthread)
+
+# --- NEW: Automation for Config ---
+# This copies your config.json to the build folder automatically
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/config.json")
+    configure_file(config.json config.json COPYONLY)
+endif()
 
 # 4. Build Inference Test (inference_test)
 find_package(OpenCV REQUIRED)
@@ -44,6 +50,7 @@ target_link_libraries(inference_test PRIVATE "${ONNX_LIB}" ${OpenCV_LIBS} pthrea
 
 target_include_directories(inference_test PRIVATE 
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party"
     "${ONNX_INCLUDE_DIR}"
 )
 
@@ -57,5 +64,10 @@ add_executable(test_dump tests/test_network_dump.cpp ${LIB_SOURCES})
 target_link_libraries(test_dump PRIVATE "${ONNX_LIB}" pthread)
 target_include_directories(test_dump PRIVATE 
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party"
     "${ONNX_INCLUDE_DIR}"
 )
+
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/config.json")
+    configure_file(config.json config.json COPYONLY)
+endif()
