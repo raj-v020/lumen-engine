@@ -1,10 +1,10 @@
 {
     "engine": {
-        "queue_type": "spsc",
+        "queue_type": "mpmc",
         "allocator_type": "lumen_arena",
-        "thread_count": 1,
+        "thread_count": 8,
         "batch_size": 1,
-        "telemetry_csv_path": "../results/lumen_squeezenet_lumen_arena_spsc.csv"
+        "telemetry_csv_path": "../results/lumen_squeezenet_lumen_arena_mpmc.csv"
     },
     "model": {
         "path": "../models/squeezenet1.1-7.onnx",
