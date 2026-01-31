@@ -15,7 +15,6 @@ namespace lumen {
 namespace concurrency {
 
 struct WorkerPod {
-    std::unique_ptr<Ort::Env> env;
     std::shared_ptr<interfaces::ILumenAllocator> allocator;
     std::unique_ptr<core::InferenceEngine> engine;
 };
@@ -34,8 +33,7 @@ private:
     ThreadPool(
       std::shared_ptr<interfaces::ITaskQueue> tq, 
       std::shared_ptr<interfaces::IResultQueue> rq, 
-      const std::string& model_path,
-      size_t thread_count
+      const std::string& model_path
     );
 
     ~ThreadPool();

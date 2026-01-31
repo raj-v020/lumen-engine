@@ -43,10 +43,15 @@ LumenArena::~LumenArena() {
     }
 }
 
-void* ORT_API_CALL LumenArena::OrtAlloc(OrtAllocator* this_, size_t size) {
-    auto* instance = reinterpret_cast<LumenArena*>(
-        reinterpret_cast<char*>(this_) - offsetof(LumenArena, m_ort_interface)
+LumenArena* LumenArena::FromOrt(OrtAllocator* ort_alloc) {
+    if (!ort_alloc) return nullptr;
+    return reinterpret_cast<LumenArena*>(
+        reinterpret_cast<char*>(ort_alloc) - offsetof(LumenArena, m_ort_interface)
     );
+}
+
+void* ORT_API_CALL LumenArena::OrtAlloc(OrtAllocator* this_, size_t size) {
+    auto* instance = FromOrt(this_);
     return instance->alloc_raw(size, 64);
 }
 
@@ -55,9 +60,7 @@ void ORT_API_CALL LumenArena::OrtFree(OrtAllocator* this_, void* p) {
 }
 
 const OrtMemoryInfo* ORT_API_CALL LumenArena::OrtInfo(const OrtAllocator* this_) {
-    auto* instance = reinterpret_cast<const LumenArena*>(
-        reinterpret_cast<const char*>(this_) - offsetof(LumenArena, m_ort_interface)
-    );
+    auto* instance = FromOrt(const_cast<OrtAllocator*>(this_));
     return instance->m_memory_info;
 }
 
@@ -69,14 +72,16 @@ void* LumenArena::alloc_raw(size_t size, size_t alignment) {
 
     size_t padding = (effective_alignment - (current_addr % effective_alignment)) % effective_alignment;
 
-    if (offset + padding + size > capacity) {
+    size_t padded_size = (size + 63) & ~63;
+
+    if (offset + padding + padded_size > capacity) {
         return nullptr; 
     }
 
     uintptr_t aligned_addr = current_addr + padding;
     void* ptr = reinterpret_cast<void*>(aligned_addr);
     
-    offset += (padding + size);
+    offset += (padding + padded_size);
 
     return reinterpret_cast<void*>(aligned_addr);
 }

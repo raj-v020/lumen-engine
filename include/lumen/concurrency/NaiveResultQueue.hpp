@@ -1,9 +1,9 @@
 #pragma once
 
-#include <lumen/interfaces/IResultQueue.hpp>
-#include <queue>
-#include <mutex>
 #include <condition_variable>
+#include <lumen/interfaces/IResultQueue.hpp>
+#include <mutex>
+#include <queue>
 
 namespace lumen {
 namespace concurrency {
@@ -26,7 +26,8 @@ public:
     std::unique_lock<std::mutex> lock(guard);
     cv.wait(lock, [this] { return !data.empty() || stop; });
 
-    if (data.empty()) return std::nullopt;
+    if (data.empty())
+      return std::nullopt;
 
     core::InferenceResult result = std::move(data.front());
     data.pop();
@@ -35,9 +36,9 @@ public:
 
   std::optional<core::InferenceResult> pop_immediate() override {
     std::lock_guard<std::mutex> lock(guard);
-    
+
     if (data.empty()) {
-        return std::nullopt; 
+      return std::nullopt;
     }
 
     core::InferenceResult result = std::move(data.front());
@@ -64,6 +65,5 @@ public:
   }
 };
 
-}
-}
-
+} // namespace concurrency
+} // namespace lumen

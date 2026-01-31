@@ -54,6 +54,8 @@ public:
 
     OrtAllocator* get_ort_interface() { return &m_ort_interface; }
 
+    static LumenArena* FromOrt(OrtAllocator* ort_alloc);
+
     template <typename T>
     T* alloc_typed(size_t count = 1) {
         return static_cast<T*>(alloc_raw(count * sizeof(T), alignof(T)));
