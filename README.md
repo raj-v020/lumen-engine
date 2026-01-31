@@ -111,6 +111,35 @@ The engine behavior is controlled via `config.json`. You can hot-swap the intern
 * `queue_type`: "mpmc", "spsc", "naive", "batched"
 * `allocator_type`: "lumen_arena", "standard"
 
+## Visualization Dashboard
+
+The project includes an interactive Python dashboard to visualize the benchmark CSVs, allowing you to analyze **Latency Jitter**, **Throughput**, and **Processing Stages**.
+
+### Setup
+
+Ensure you have Python 3 installed.
+
+```bash
+# 1. Create a virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# 2. Install dependencies
+pip install -r requirements.txt
+
+```
+
+### Running the Dashboard
+
+Make sure your benchmark results are in the `results/` directory, then run:
+
+```bash
+streamlit run dashboard.py
+
+```
+
+This will open a local web interface (usually `http://localhost:8501`) where you can compare different queue/allocator configurations side-by-side.
+
 ## Future Work
 
 * **Networking:** Migration from `poll()` to `io_uring` to support higher connection density (C10K).

@@ -55,3 +55,9 @@ Thumbs.db
 
 # === Test Artifacts ===
 engine/tests/images/dump_from_network.bin
+
+# === Python Dashboard ===
+.venv/
+__pycache__/
+*.pyc
+.streamlit/
