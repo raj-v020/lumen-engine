@@ -1,5 +1,7 @@
 #include "ImageNetProcessor.hpp"
 namespace lumen {
-    using ResNetPreProcessor = ImageNetPreProcessor;
-    using ResNetPostProcessor = ImageNetPostProcessor;
-}
+namespace models {
+using ResNetPreProcessor = ImageNetPreProcessor;
+using ResNetPostProcessor = ImageNetPostProcessor;
+} // namespace models
+} // namespace lumen

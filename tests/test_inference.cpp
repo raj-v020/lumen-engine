@@ -1,23 +1,22 @@
-#include "InferenceEngine.hpp"
-#include "LumenArena.hpp"
-#include "Processor.hpp"
 #include <fstream>
 #include <iostream>
+#include <lumen/core/InferenceEngine.hpp>
+#include <lumen/memory/LumenArena.hpp>
+#include <lumen/models/ImageNetProcessor.hpp>
 #include <opencv2/opencv.hpp>
 #include <vector>
 
 using namespace std;
-using namespace lumen;
 
 int main() {
   string model_path = "../models/resnet18-v1-7.onnx";
   string labels_path = "../models/labels.txt";
   string image_path = "../tests/images/cat.jpg";
 
-  LumenArena arena(1024 * 1024 * 20);
-  InferenceEngine engine(model_path);
-  SqueezeNetPreProcessor pre;
-  SqueezeNetPostProcessor post(labels_path);
+  lumen::memory::LumenArena arena(1024 * 1024 * 20);
+  lumen::core::InferenceEngine engine(model_path);
+  lumen::models::SqueezeNetPreProcessor pre;
+  lumen::models::SqueezeNetPostProcessor post(labels_path);
 
   cv::Mat img = cv::imread(image_path);
   if (img.empty()) {
@@ -29,7 +28,7 @@ int main() {
   cv::cvtColor(img, img, cv::COLOR_BGR2RGB);
 
   size_t image_size = img.total() * img.elemSize(); // 224 * 224 * 3
-  unsigned char *arena_ptr = arena.alloc<unsigned char>(image_size);
+  unsigned char *arena_ptr = arena.Alloc<unsigned char>(image_size);
 
   std::memcpy(arena_ptr, img.data, image_size);
 

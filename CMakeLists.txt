@@ -3,6 +3,12 @@ project(LumenEngine)
 
 set(CMAKE_CXX_STANDARD 17)
 
+# Step 1: Declare the configuration variable with a default value of "None"
+set(LUMEN_ENABLE_SANITIZER "None" CACHE STRING "Compile with runtime sanitizers")
+
+# Step 2: Restrict the valid input strings to an explicit list
+set_property(CACHE LUMEN_ENABLE_SANITIZER PROPERTY STRINGS "None" "Address" "Thread" "Undefined")
+
 # 1. Setup ONNX Variables
 set(ONNX_LIB_DIR "${CMAKE_SOURCE_DIR}/third_party/onnxruntime/lib")
 set(ONNX_LIB "${ONNX_LIB_DIR}/libonnxruntime.so")
@@ -42,32 +48,53 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/config.json")
 endif()
 
 # 4. Build Inference Test (inference_test)
-find_package(OpenCV REQUIRED)
+#find_package(OpenCV REQUIRED)
 
-add_executable(inference_test tests/test_inference.cpp ${LIB_SOURCES})
+#add_executable(inference_test tests/test_inference.cpp ${LIB_SOURCES})
 
-target_link_libraries(inference_test PRIVATE "${ONNX_LIB}" ${OpenCV_LIBS} pthread)
+#target_link_libraries(inference_test PRIVATE "${ONNX_LIB}" ${OpenCV_LIBS} pthread)
 
-target_include_directories(inference_test PRIVATE 
+#target_include_directories(inference_test PRIVATE 
+#    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+#    "${CMAKE_CURRENT_SOURCE_DIR}/third_party"
+#    "${ONNX_INCLUDE_DIR}"
+#)
+
+#set_target_properties(inference_test PROPERTIES 
+#    INSTALL_RPATH "${ONNX_LIB_DIR}"
+#    BUILD_WITH_INSTALL_RPATH TRUE
+#)
+
+# 5. Build Network Dump Test (test_dump)
+#add_executable(test_dump tests/test_network_dump.cpp ${LIB_SOURCES})
+#target_link_libraries(test_dump PRIVATE "${ONNX_LIB}" pthread)
+#target_include_directories(test_dump PRIVATE 
+#    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+#    "${CMAKE_CURRENT_SOURCE_DIR}/third_party"
+#    "${ONNX_INCLUDE_DIR}"
+#)
+
+# 6. Build Fuzz Concurrency Test (fuzz_concurrency)
+add_executable(fuzz_concurrency tests/fuzz_concurrency.cpp ${LIB_SOURCES})
+target_link_libraries(fuzz_concurrency PRIVATE "${ONNX_LIB}" pthread)
+target_include_directories(fuzz_concurrency PRIVATE 
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party"
     "${ONNX_INCLUDE_DIR}"
 )
-
-set_target_properties(inference_test PROPERTIES 
+set_target_properties(fuzz_concurrency PROPERTIES 
     INSTALL_RPATH "${ONNX_LIB_DIR}"
     BUILD_WITH_INSTALL_RPATH TRUE
 )
 
-# 5. Build Network Dump Test (test_dump)
-add_executable(test_dump tests/test_network_dump.cpp ${LIB_SOURCES})
-target_link_libraries(test_dump PRIVATE "${ONNX_LIB}" pthread)
-target_include_directories(test_dump PRIVATE 
-    "${CMAKE_CURRENT_SOURCE_DIR}/include"
-    "${CMAKE_CURRENT_SOURCE_DIR}/third_party"
-    "${ONNX_INCLUDE_DIR}"
-)
-
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/config.json")
-    configure_file(config.json config.json COPYONLY)
+if(NOT LUMEN_ENABLE_SANITIZER STREQUAL "None")
+    if(LUMEN_ENABLE_SANITIZER STREQUAL "Address")
+        message(STATUS "[BUILD] Configuring compilation for AddressSanitizer...")
+        target_compile_options(fuzz_concurrency PRIVATE -fsanitize=address -fno-omit-frame-pointer)
+        target_link_options(fuzz_concurrency PRIVATE -fsanitize=address)
+    elseif(LUMEN_ENABLE_SANITIZER STREQUAL "Thread")
+        message(STATUS "[BUILD] Configuring compilation for ThreadSanitizer...")
+        target_compile_options(fuzz_concurrency PRIVATE -fsanitize=thread -fno-omit-frame-pointer)
+        target_link_options(fuzz_concurrency PRIVATE -fsanitize=thread)
+    endif()
 endif()

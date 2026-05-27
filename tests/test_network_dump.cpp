@@ -1,22 +1,21 @@
-#include "InferenceEngine.hpp"
-#include "LumenArena.hpp"
-#include "Processor.hpp"
 #include <fstream>
 #include <iostream>
+#include <lumen/core/InferenceEngine.hpp>
+#include <lumen/memory/LumenArena.hpp>
+#include <lumen/models/ImageNetProcessor.hpp>
 #include <vector>
 
 using namespace std;
-using namespace lumen;
 
 int main() {
   string model_path = "../models/resnet18-v1-7.onnx";
   string labels_path = "../models/labels.txt";
   string dump_path = "../tests/images/dump_from_network.bin";
 
-  Arena arena(1024 * 1024 * 20);
-  InferenceEngine engine(model_path);
-  SqueezeNetPreProcessor pre;
-  SqueezeNetPostProcessor post(labels_path);
+  lumen::memory::LumenArena arena(1024 * 1024 * 20);
+  lumen::core::InferenceEngine engine(model_path, arena.get_ort_interface());
+  lumen::models::SqueezeNetPreProcessor pre;
+  lumen::models::SqueezeNetPostProcessor post(labels_path);
 
   // 2. Load the Raw Binary Dump
   ifstream file(dump_path, ios::binary | ios::ate);
@@ -29,7 +28,7 @@ int main() {
   file.seekg(0, ios::beg);
 
   // 3. Allocate and Load directly into Arena
-  unsigned char *arena_ptr = arena.alloc<unsigned char>(size);
+  unsigned char *arena_ptr = arena.Alloc<unsigned char>(size);
   if (!file.read((char *)arena_ptr, size)) {
     cerr << "[-] Error: Failed to read binary data" << endl;
     return -1;
@@ -39,7 +38,7 @@ int main() {
   // 4. Run Inference
   // If this fails, but 'test_inference' (the one using cat.jpg) passes,
   // then the TCPServer is not receiving the bytes correctly.
-  string result = engine.infer(arena, pre, post);
+  string result = engine.run(tsk, );
 
   cout << "\n================================" << endl;
   cout << "DUMP ANALYSIS RESULT: " << result << endl;

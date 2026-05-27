@@ -42,9 +42,9 @@ int main() {
     std::shared_ptr<lumen::interfaces::IPostProcessor> post;
 
     if (config.get_processor_type() == lumen::utils::ProcessorType::IMAGENET) {
-      pre = std::make_shared<lumen::core::SqueezeNetPreProcessor>();
+      pre = std::make_shared<lumen::models::SqueezeNetPreProcessor>();
       std::string labels = config.get_metadata_extra("label_path");
-      post = std::make_shared<lumen::core::SqueezeNetPostProcessor>(labels);
+      post = std::make_shared<lumen::models::SqueezeNetPostProcessor>(labels);
     }
 
     // 3. THE POD FACTORY (ThreadPool)
