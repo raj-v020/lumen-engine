@@ -98,3 +98,24 @@ if(NOT LUMEN_ENABLE_SANITIZER STREQUAL "None")
         target_link_options(fuzz_concurrency PRIVATE -fsanitize=thread)
     endif()
 endif()
+
+# ==========================================
+# Target: Latency Regression Benchmark Suite
+# ==========================================
+add_executable(bench_pure_latency tests/bench_pure_latency.cpp ${LIB_SOURCES})
+
+target_link_libraries(bench_pure_latency PRIVATE "${ONNX_LIB}" pthread)
+
+target_include_directories(bench_pure_latency PRIVATE 
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party"
+    "${ONNX_INCLUDE_DIR}"
+)
+
+# Ensure full optimization and native hardware instruction generation for profiling
+target_compile_options(bench_pure_latency PRIVATE -O3 -march=native)
+
+set_target_properties(bench_pure_latency PROPERTIES 
+    INSTALL_RPATH "${ONNX_LIB_DIR}"
+    BUILD_WITH_INSTALL_RPATH TRUE
+)

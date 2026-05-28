@@ -78,14 +78,22 @@ int main() {
     consumers[c].join();
   }
 
+  bool test_failed = false;
   for (int t = 0; t < TOTAL_TASKS; t++) {
     int flag = global_checksum[t].load();
 
     if (flag == 0) {
       std::cerr << "Task " << t << " Dropped\n";
+      test_failed = true;
     } else if (flag > 1) {
       std::cerr << "RACE CONDITION: At task " << t << "\n";
+      test_failed = true;
     }
+  }
+  if (test_failed) {
+    std::cerr
+        << "FAILURE: Concurrency verification failed with active data races\n";
+    return 1;
   }
   std::cout
       << "SUCCESS: Fuzz test executed successfully with zero data races\n";
