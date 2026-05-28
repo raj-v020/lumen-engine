@@ -37,12 +37,12 @@ jobs:
               -DCOMPILE_DEFINITIONS="NUM_PRODUCERS=1;NUM_CONSUMERS=1" \
               ..
 
-    name: Build Micro-Benchmark Target
+    - name: Build Micro-Benchmark Target
       run: |
         cd build
         cmake --build . --target bench_pure_latency --config Release
 
-    name: Execute Latency SLA Validation Gate
+    - name: Execute Latency SLA Validation Gate
       run: |
         cd build
         # Runs the binary. If P99 tail latency violates the SLA, 
