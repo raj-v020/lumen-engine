@@ -1,0 +1,50 @@
+name: Lumen Performance Regression Gate
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  performance-bench:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Source Code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Set up Build Environment
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential cmake libpthread-stubs0-dev
+
+    # If ONNX Runtime or other vendor libraries are required binaries,
+    # download or restore them from cache here to satisfy CMAKE_CURRENT_SOURCE_DIR linkages.
+    # - name: Restore Vendor Dependencies
+    #   run: |
+    #     # Scripted download/extract matching ${ONNX_LIB_DIR} paths
+
+    - name: Configure CMake with Environment Scaling
+      run: |
+        mkdir -p build
+        cd build
+        # We override the thread parameters down to 1 Producer and 1 Consumer 
+        # to ensure perfect, un-throttled core execution on the 2-core GitHub Actions runner.
+        cmake -DCMAKE_BUILD_TYPE=Release \
+              -DCOMPILE_DEFINITIONS="NUM_PRODUCERS=1;NUM_CONSUMERS=1" \
+              ..
+
+    name: Build Micro-Benchmark Target
+      run: |
+        cd build
+        cmake --build . --target bench_pure_latency --config Release
+
+    name: Execute Latency SLA Validation Gate
+      run: |
+        cd build
+        # Runs the binary. If P99 tail latency violates the SLA, 
+        # the binary returns exit code 1, automatically failing the CI pipeline build.
+        ./bench_pure_latency

@@ -8,14 +8,26 @@
 #include <vector>
 #include <x86intrin.h>
 
+// Preprocessor guards allow environment overrides via compiler flags (e.g.,
+// -DNUM_PRODUCERS=1)
+#ifndef NUM_PRODUCERS
 static constexpr int NUM_PRODUCERS = 4;
+#endif
+
+#ifndef NUM_CONSUMERS
 static constexpr int NUM_CONSUMERS = 4;
+#endif
+
+#ifndef CPU_HZ
+static constexpr uint64_t CPU_HZ =
+    3000000000ULL; // Default 3.0 GHz nominal frequency
+#endif
+
 static constexpr int TASKS_PER_PRODUCER = 100000;
 static constexpr int TOTAL_TASKS = NUM_PRODUCERS * TASKS_PER_PRODUCER;
 
 // Expected CPU nominal frequency for SLA conversion (e.g., 3.0 GHz)
 // 75ms @ 3.0 GHz = 0.075 * 3,000,000,000 = 225,000,000 clock cycles
-static constexpr uint64_t CPU_HZ = 3000000000ULL;
 static constexpr uint64_t CYCLE_THRESHOLD = (75 * CPU_HZ) / 1000;
 
 std::atomic<bool> g_running{true};
@@ -68,6 +80,15 @@ int main() {
         }
       }
     });
+
+    // Set Core Affinity for Producer: Map sequentially to even logical cores
+    // (0, 2, 4, 6)
+    int core_id = p * 2;
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(core_id, &cpuset);
+    pthread_setaffinity_np(producers.back().native_handle(), sizeof(cpu_set_t),
+                           &cpuset);
   }
 
   std::vector<std::thread> consumers;
@@ -97,6 +118,15 @@ int main() {
         }
       }
     });
+
+    // Set Core Affinity for Consumer: Map to sibling odd logical cores (1, 3,
+    // 5, 7)
+    int core_id = (c * 2) + 1;
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(core_id, &cpuset);
+    pthread_setaffinity_np(consumers.back().native_handle(), sizeof(cpu_set_t),
+                           &cpuset);
   }
 
   start_signal.store(true, std::memory_order_release);

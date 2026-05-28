@@ -115,6 +115,9 @@ target_include_directories(bench_pure_latency PRIVATE
 # Ensure full optimization and native hardware instruction generation for profiling
 target_compile_options(bench_pure_latency PRIVATE -O3 -march=native)
 
+# Forward system or CI environment overrides down into the C++ preprocessor symbols
+target_compile_definitions(bench_pure_latency PRIVATE ${COMPILE_DEFINITIONS})
+
 set_target_properties(bench_pure_latency PROPERTIES 
     INSTALL_RPATH "${ONNX_LIB_DIR}"
     BUILD_WITH_INSTALL_RPATH TRUE
