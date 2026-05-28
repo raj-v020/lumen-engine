@@ -1,17 +1,9 @@
 {
     "engine": {
-        "queue_type": "mpmc",
+        "queue_type": "batched",
         "allocator_type": "lumen_arena",
+        "telemetry_csv_path": "../results/micro/squeezenet_batched_lumen_arena.csv",
         "thread_count": 8,
-        "batch_size": 1,
-        "telemetry_csv_path": "../results/lumen_squeezenet_lumen_arena_mpmc.csv"
-    },
-    "model": {
-        "path": "../models/squeezenet1.1-7.onnx",
-        "processor_type": "imagenet",
-        "metadata": {
-            "type": "classification",
-            "label_path": "../models/labels.txt"
-        }
+        "batch_size": 4
     }
 }
