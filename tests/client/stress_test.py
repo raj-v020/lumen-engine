@@ -13,8 +13,8 @@ import numpy as np
 SERVER_IP = "127.0.0.1"
 SERVER_PORT = 8080
 IMAGE_NAMES = ["cat.jpg", "dog.jpg", "car.jpg", "bike.jpg"]
-NUM_CLIENTS = 4  # Number of concurrent threads
-REQUESTS_PER_CLIENT = 200  # How many requests each thread sends
+NUM_CLIENTS = 16  # Number of concurrent threads
+REQUESTS_PER_CLIENT = 50  # How many requests each thread sends
 
 # --- PRE-LOAD IMAGES ---
 loaded_payloads = []
